@@ -1,0 +1,52 @@
+# Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# PyInstaller / Packaging artifacts
+build/
+dist/
+*.manifest
+*.spec.bak
+
+# Database & Local User Data
+*.db
+*.sqlite
+*.sqlite3
+data/
+backups/
+downloads/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# macOS / OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
