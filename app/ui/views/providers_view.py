@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
+from app.services.statement_print_service import StatementPrintService
 from app.ui.components.date_range_picker import DateRangePicker
 from app.utils.decimal_utils import format_currency
 
@@ -81,6 +82,7 @@ class ProviderLedgerDialog(QDialog):
     def __init__(self, provider_id: int, parent=None):
         super().__init__(parent)
         self.provider_id = provider_id
+        self.current_stmt = None
         self.setWindowTitle("Provider Statement & Ledger")
         self.resize(850, 500)
 
@@ -91,6 +93,17 @@ class ProviderLedgerDialog(QDialog):
         self.date_picker.date_range_changed.connect(self.refresh_ledger)
         top_layout.addWidget(self.date_picker)
         top_layout.addStretch()
+
+        self.print_btn = QPushButton("🖨️ Print Statement")
+        self.print_btn.setProperty("class", "secondaryBtn")
+        self.print_btn.clicked.connect(self._on_print)
+        top_layout.addWidget(self.print_btn)
+
+        self.pdf_btn = QPushButton("📄 Save PDF")
+        self.pdf_btn.setProperty("class", "secondaryBtn")
+        self.pdf_btn.clicked.connect(self._on_export_pdf)
+        top_layout.addWidget(self.pdf_btn)
+
         layout.addLayout(top_layout)
 
         self.summary_label = QLabel()
@@ -110,7 +123,10 @@ class ProviderLedgerDialog(QDialog):
         start_d, end_d = self.date_picker.get_date_range()
         stmt = BalanceService.get_provider_statement(self.provider_id, start_d, end_d)
         if not stmt:
+            self.current_stmt = None
             return
+
+        self.current_stmt = stmt
 
         self.summary_label.setText(
             f"Provider: {stmt.provider_name} | Period Opening: {format_currency(stmt.period_opening_balance)} | "
@@ -127,6 +143,17 @@ class ProviderLedgerDialog(QDialog):
             self.table.setItem(r, 2, QTableWidgetItem(format_currency(entry.debit) if entry.debit > 0 else "-"))
             self.table.setItem(r, 3, QTableWidgetItem(format_currency(entry.credit) if entry.credit > 0 else "-"))
             self.table.setItem(r, 4, QTableWidgetItem(format_currency(entry.running_balance)))
+
+    def _on_print(self):
+        if not self.current_stmt:
+            return
+        StatementPrintService.print_statement(self.current_stmt, parent=self, is_provider=True)
+
+    def _on_export_pdf(self):
+        if not self.current_stmt:
+            return
+        StatementPrintService.export_pdf(self.current_stmt, parent=self, is_provider=True)
+
 
 class ProvidersView(QWidget):
     """

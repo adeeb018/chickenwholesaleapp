@@ -7,6 +7,7 @@ from app.services.master_service import MasterService
 from app.services.sales_service import SalesService
 from app.services.purchase_service import PurchaseService
 from app.services.payment_service import PaymentService
+from app.services.balance_service import BalanceService
 from app.ui.views.reports_view import ReportsView, ProviderFacingStatementTab, CustomerFacingStatementTab
 
 # Ensure Qt runs offscreen for CI / headless testing
@@ -221,3 +222,80 @@ def test_customer_statement_columns_with_discount_and_payment(qapp):
     assert cust_tab.table.item(3, 5).text() == "-"
     assert cust_tab.table.item(3, 6).text() == "₹25,000.00"
     assert cust_tab.table.item(3, 7).text() == "₹53,000.00"
+
+def test_statement_print_service_and_buttons(qapp, tmp_path):
+    from app.services.statement_print_service import StatementPrintService
+    from app.ui.views.customers_view import CustomerLedgerDialog
+    from app.ui.views.providers_view import ProviderLedgerDialog
+
+    # 1. Setup sample customer and provider statements
+    cust = MasterService.create_customer(name="Print Test Customer", phone="9900112233")
+    prov = MasterService.create_provider(name="Print Test Provider", phone="9900112244")
+    item = MasterService.get_all_items()[0]
+
+    SalesService.create_sale(
+        transaction_date=date(2026, 9, 2),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=100,
+        box_weight_kg=0,
+        rate_per_kg=200,
+        discount_amount=500
+    )
+    PurchaseService.create_purchase(
+        transaction_date=date(2026, 9, 3),
+        provider_id=prov.id,
+        item_id=item.id,
+        weight_kg=200,
+        rate_per_kg=150,
+        payment_type="BANK"
+    )
+
+    cust_stmt = BalanceService.get_customer_statement(cust.id, date(2026, 9, 1), date(2026, 9, 30))
+    prov_stmt = BalanceService.get_provider_statement(prov.id, date(2026, 9, 1), date(2026, 9, 30))
+
+    # 2. Test Customer HTML generation
+    cust_html = StatementPrintService.generate_customer_statement_html(cust_stmt)
+    assert "CUSTOMER STATEMENT" in cust_html
+    assert "PRINT TEST CUSTOMER" in cust_html
+    assert "Sale (Broiler - 100.000 KG" in cust_html
+    assert "₹19,500.00" in cust_html
+
+    # 3. Test Provider HTML generation
+    prov_html = StatementPrintService.generate_provider_statement_html(prov_stmt)
+    assert "PROVIDER ACCOUNT STATEMENT" in prov_html
+    assert "PRINT TEST PROVIDER" in prov_html
+    assert "Purchase (Broiler - 200.000 KG" in prov_html
+    assert "₹30,000.00" in prov_html
+
+    # 4. Test PDF rendering to disk
+    pdf_path = str(tmp_path / "test_statement.pdf")
+    from PySide6.QtPrintSupport import QPrinter
+    from PySide6.QtGui import QTextDocument
+
+    printer = QPrinter(QPrinter.HighResolution)
+    printer.setOutputFormat(QPrinter.PdfFormat)
+    printer.setOutputFileName(pdf_path)
+
+    doc = QTextDocument()
+    doc.setHtml(cust_html)
+    doc.print_(printer)
+
+    assert os.path.exists(pdf_path)
+    assert os.path.getsize(pdf_path) > 1000
+
+    # 5. Verify UI buttons exist and are wired on Report Hub tabs and dialogs
+    reports_view = ReportsView()
+    assert reports_view.cust_stmt_tab.print_btn.text() == "🖨️ Print Statement"
+    assert reports_view.cust_stmt_tab.pdf_btn.text() == "📄 Save PDF"
+    assert reports_view.prov_stmt_tab.print_btn.text() == "🖨️ Print Statement"
+    assert reports_view.prov_stmt_tab.pdf_btn.text() == "📄 Save PDF"
+
+    cust_dlg = CustomerLedgerDialog(cust.id)
+    assert cust_dlg.print_btn.text() == "🖨️ Print Statement"
+    assert cust_dlg.pdf_btn.text() == "📄 Save PDF"
+
+    prov_dlg = ProviderLedgerDialog(prov.id)
+    assert prov_dlg.print_btn.text() == "🖨️ Print Statement"
+    assert prov_dlg.pdf_btn.text() == "📄 Save PDF"
+

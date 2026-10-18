@@ -2,13 +2,14 @@ from datetime import date
 from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QComboBox, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QFrame
+    QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt
 from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
 from app.services.report_service import ReportService
 from app.services.weight_loss_service import WeightLossService
+from app.services.statement_print_service import StatementPrintService
 from app.ui.components.date_range_picker import DateRangePicker
 from app.utils.decimal_utils import format_currency, format_weight
 
@@ -19,6 +20,7 @@ class CustomerFacingStatementTab(QWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_stmt = None
         layout = QVBoxLayout(self)
 
         filter_layout = QHBoxLayout()
@@ -27,10 +29,20 @@ class CustomerFacingStatementTab(QWidget):
         self.date_picker.date_range_changed.connect(self.generate_report)
         self.customer_combo.currentIndexChanged.connect(self.generate_report)
 
+        self.print_btn = QPushButton("🖨️ Print Statement")
+        self.print_btn.setProperty("class", "secondaryBtn")
+        self.print_btn.clicked.connect(self._on_print)
+
+        self.pdf_btn = QPushButton("📄 Save PDF")
+        self.pdf_btn.setProperty("class", "secondaryBtn")
+        self.pdf_btn.clicked.connect(self._on_export_pdf)
+
         filter_layout.addWidget(QLabel("Customer:"))
         filter_layout.addWidget(self.customer_combo)
         filter_layout.addWidget(self.date_picker)
         filter_layout.addStretch()
+        filter_layout.addWidget(self.print_btn)
+        filter_layout.addWidget(self.pdf_btn)
 
         layout.addLayout(filter_layout)
 
@@ -64,6 +76,7 @@ class CustomerFacingStatementTab(QWidget):
     def generate_report(self):
         c_id = self.customer_combo.currentData()
         if not c_id:
+            self.current_stmt = None
             self.summary_card.setText("No customer selected.")
             self.table.setRowCount(0)
             return
@@ -71,9 +84,12 @@ class CustomerFacingStatementTab(QWidget):
         start_d, end_d = self.date_picker.get_date_range()
         stmt = BalanceService.get_customer_statement(c_id, start_d, end_d)
         if not stmt:
+            self.current_stmt = None
             self.summary_card.setText("Customer statement could not be loaded.")
             self.table.setRowCount(0)
             return
+
+        self.current_stmt = stmt
 
         total_discount = sum(
             (entry.discount_amount for entry in stmt.ledger_entries if entry.discount_amount),
@@ -146,6 +162,18 @@ class CustomerFacingStatementTab(QWidget):
             # Running Balance
             self.table.setItem(r, 7, QTableWidgetItem(format_currency(entry.running_balance)))
 
+    def _on_print(self):
+        if not self.current_stmt:
+            QMessageBox.warning(self, "No Statement", "Please select a customer to print statement.")
+            return
+        StatementPrintService.print_statement(self.current_stmt, parent=self, is_provider=False)
+
+    def _on_export_pdf(self):
+        if not self.current_stmt:
+            QMessageBox.warning(self, "No Statement", "Please select a customer to export statement.")
+            return
+        StatementPrintService.export_pdf(self.current_stmt, parent=self, is_provider=False)
+
 class ProviderFacingStatementTab(QWidget):
     """
     Provider Statement Tab - Supplier / Provider Facing.
@@ -154,6 +182,7 @@ class ProviderFacingStatementTab(QWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_stmt = None
         layout = QVBoxLayout(self)
 
         filter_layout = QHBoxLayout()
@@ -162,10 +191,20 @@ class ProviderFacingStatementTab(QWidget):
         self.date_picker.date_range_changed.connect(self.generate_report)
         self.provider_combo.currentIndexChanged.connect(self.generate_report)
 
+        self.print_btn = QPushButton("🖨️ Print Statement")
+        self.print_btn.setProperty("class", "secondaryBtn")
+        self.print_btn.clicked.connect(self._on_print)
+
+        self.pdf_btn = QPushButton("📄 Save PDF")
+        self.pdf_btn.setProperty("class", "secondaryBtn")
+        self.pdf_btn.clicked.connect(self._on_export_pdf)
+
         filter_layout.addWidget(QLabel("Provider:"))
         filter_layout.addWidget(self.provider_combo)
         filter_layout.addWidget(self.date_picker)
         filter_layout.addStretch()
+        filter_layout.addWidget(self.print_btn)
+        filter_layout.addWidget(self.pdf_btn)
 
         layout.addLayout(filter_layout)
 
@@ -199,6 +238,7 @@ class ProviderFacingStatementTab(QWidget):
     def generate_report(self):
         p_id = self.provider_combo.currentData()
         if not p_id:
+            self.current_stmt = None
             self.summary_card.setText("No provider selected.")
             self.table.setRowCount(0)
             return
@@ -206,9 +246,12 @@ class ProviderFacingStatementTab(QWidget):
         start_d, end_d = self.date_picker.get_date_range()
         stmt = BalanceService.get_provider_statement(p_id, start_d, end_d)
         if not stmt:
+            self.current_stmt = None
             self.summary_card.setText("Provider statement could not be loaded.")
             self.table.setRowCount(0)
             return
+
+        self.current_stmt = stmt
 
         self.summary_card.setText(
             f"PROVIDER STATEMENT — {stmt.provider_name.upper()}\n"
@@ -264,6 +307,18 @@ class ProviderFacingStatementTab(QWidget):
 
             # Running Balance
             self.table.setItem(r, 6, QTableWidgetItem(format_currency(entry.running_balance)))
+
+    def _on_print(self):
+        if not self.current_stmt:
+            QMessageBox.warning(self, "No Statement", "Please select a provider to print statement.")
+            return
+        StatementPrintService.print_statement(self.current_stmt, parent=self, is_provider=True)
+
+    def _on_export_pdf(self):
+        if not self.current_stmt:
+            QMessageBox.warning(self, "No Statement", "Please select a provider to export statement.")
+            return
+        StatementPrintService.export_pdf(self.current_stmt, parent=self, is_provider=True)
 
 # Friendly aliases
 CustomerStatementTab = CustomerFacingStatementTab
