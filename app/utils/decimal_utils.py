@@ -28,6 +28,9 @@ def round_money(val: NumericType) -> Decimal:
     d = to_decimal(val)
     return d.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
 
+# Convenient alias
+round_currency = round_money
+
 def round_weight(val: NumericType) -> Decimal:
     """Rounds a decimal value to 3 decimal places for weight in KG."""
     d = to_decimal(val)

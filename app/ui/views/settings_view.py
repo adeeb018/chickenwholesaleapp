@@ -1,11 +1,13 @@
 from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QFileDialog,
-    QMessageBox
+    QMessageBox, QDoubleSpinBox
 )
 from PySide6.QtCore import Qt
 from app.config.settings import get_db_path
 from app.services.backup_service import BackupService
+from app.services.setting_service import SettingService
+from app.utils.decimal_utils import format_currency
 
 class SettingsView(QWidget):
     """
@@ -33,6 +35,45 @@ class SettingsView(QWidget):
 
         layout.addWidget(info_frame)
 
+        # Default Pricing Settings Frame
+        pricing_frame = QFrame()
+        pricing_frame.setProperty("class", "cardFrame")
+        pricing_box = QVBoxLayout(pricing_frame)
+        pricing_box.setSpacing(10)
+
+        pricing_box.addWidget(QLabel("<b>🐔 Daily Benchmark Chicken Selling Rate:</b>"))
+        pricing_box.addWidget(QLabel("Default market selling rate (₹/KG) that automatically pre-fills on new customer sales."))
+
+        rate_row = QHBoxLayout()
+        self.settings_rate_spin = QDoubleSpinBox()
+        self.settings_rate_spin.setRange(0.00, 99999.00)
+        self.settings_rate_spin.setDecimals(2)
+        self.settings_rate_spin.setPrefix("₹ ")
+        self.settings_rate_spin.setSuffix(" / KG")
+        self.settings_rate_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                font-size: 14px;
+                font-weight: bold;
+                color: #1e3a8a;
+                background-color: #ffffff;
+                border: 2px solid #93c5fd;
+                border-radius: 6px;
+                padding: 6px 10px;
+                min-width: 140px;
+            }
+        """)
+
+        save_rate_btn = QPushButton("Save Rate")
+        save_rate_btn.setProperty("class", "primaryBtn")
+        save_rate_btn.clicked.connect(self._save_pricing_rate)
+
+        rate_row.addWidget(self.settings_rate_spin)
+        rate_row.addWidget(save_rate_btn)
+        rate_row.addStretch()
+
+        pricing_box.addLayout(rate_row)
+        layout.addWidget(pricing_frame)
+
         # Backup & Restore Frame
         backup_frame = QFrame()
         backup_frame.setProperty("class", "cardFrame")
@@ -58,6 +99,8 @@ class SettingsView(QWidget):
         backup_box.addLayout(btn_layout)
         layout.addWidget(backup_frame)
         layout.addStretch()
+
+        self.refresh_data()
 
     def _create_backup(self):
         default_name = f"chicken_wholesale_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
@@ -89,3 +132,21 @@ class SettingsView(QWidget):
                     QMessageBox.information(self, "Restore Successful", msg)
                 else:
                     QMessageBox.critical(self, "Restore Error", msg)
+
+    def refresh_data(self):
+        """Loads current settings values into form fields."""
+        current_rate = SettingService.get_main_chicken_rate()
+        self.settings_rate_spin.setValue(float(current_rate))
+
+    def _save_pricing_rate(self):
+        val = self.settings_rate_spin.value()
+        try:
+            saved_rate = SettingService.set_main_chicken_rate(val)
+            QMessageBox.information(
+                self,
+                "Settings Saved",
+                f"Main chicken selling rate successfully updated to {format_currency(saved_rate)} / KG."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save chicken rate: {str(e)}")
+

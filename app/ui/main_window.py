@@ -151,7 +151,9 @@ class MainWindow(QMainWindow):
 
         # Auto refresh active view when navigated
         current_widget = self.stacked.currentWidget()
-        if hasattr(current_widget, "refresh_data"):
+        if hasattr(current_widget, "on_view_activated"):
+            current_widget.on_view_activated()
+        elif hasattr(current_widget, "refresh_data"):
             current_widget.refresh_data()
         elif hasattr(current_widget, "refresh_table"):
             current_widget.refresh_table()

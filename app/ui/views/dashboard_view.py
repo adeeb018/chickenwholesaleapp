@@ -1,7 +1,7 @@
 from datetime import date
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QTableWidget,
-    QTableWidgetItem, QHeaderView
+    QTableWidgetItem, QHeaderView, QDoubleSpinBox, QPushButton, QMessageBox
 )
 from PySide6.QtCore import Qt
 from app.ui.components.date_range_picker import DateRangePicker
@@ -9,6 +9,7 @@ from app.ui.components.stat_card import StatCard
 from app.services.report_service import ReportService
 from app.services.weight_loss_service import WeightLossService
 from app.services.balance_service import BalanceService
+from app.services.setting_service import SettingService
 from app.utils.decimal_utils import format_currency, format_weight
 
 class DashboardView(QWidget):
@@ -33,6 +34,76 @@ class DashboardView(QWidget):
         top_layout.addStretch()
         top_layout.addWidget(self.date_picker)
         layout.addLayout(top_layout)
+
+        # Main Chicken Rate Benchmark Control Banner
+        rate_frame = QFrame()
+        rate_frame.setProperty("class", "cardFrame")
+        rate_frame.setStyleSheet("""
+            QFrame.cardFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffffff, stop:1 #f8fafc);
+                border: 1.5px solid #cbd5e1;
+                border-left: 6px solid #2563eb;
+                border-radius: 8px;
+                padding: 10px 16px;
+            }
+        """)
+        rate_layout = QHBoxLayout(rate_frame)
+        rate_layout.setContentsMargins(5, 5, 5, 5)
+        rate_layout.setSpacing(15)
+
+        rate_info_box = QVBoxLayout()
+        rate_info_box.setSpacing(2)
+        rate_title = QLabel("🐔 <b>Main Chicken Rate (Daily Benchmark)</b>")
+        rate_title.setStyleSheet("font-size: 15px; color: #0f172a;")
+        rate_subtitle = QLabel("Set today's market rate (₹/KG). This rate is automatically pre-filled as the default on customer sales.")
+        rate_subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
+        rate_info_box.addWidget(rate_title)
+        rate_info_box.addWidget(rate_subtitle)
+
+        rate_layout.addLayout(rate_info_box)
+        rate_layout.addStretch()
+
+        self.main_rate_spin = QDoubleSpinBox()
+        self.main_rate_spin.setRange(0.00, 99999.00)
+        self.main_rate_spin.setDecimals(2)
+        self.main_rate_spin.setPrefix("₹ ")
+        self.main_rate_spin.setSuffix(" / KG")
+        self.main_rate_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                font-size: 15px;
+                font-weight: bold;
+                color: #1e3a8a;
+                background-color: #ffffff;
+                border: 2px solid #93c5fd;
+                border-radius: 6px;
+                padding: 6px 10px;
+                min-width: 140px;
+            }
+            QDoubleSpinBox:focus {
+                border: 2px solid #2563eb;
+            }
+        """)
+
+        save_rate_btn = QPushButton("💾 Set Main Rate")
+        save_rate_btn.setProperty("class", "primaryBtn")
+        save_rate_btn.clicked.connect(self._save_main_rate)
+
+        self.rate_status_badge = QLabel("Active: ₹ 0.00 / KG")
+        self.rate_status_badge.setStyleSheet("""
+            color: #047857;
+            background-color: #d1fae5;
+            border: 1px solid #6ee7b7;
+            border-radius: 12px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: bold;
+        """)
+
+        rate_layout.addWidget(self.main_rate_spin)
+        rate_layout.addWidget(save_rate_btn)
+        rate_layout.addWidget(self.rate_status_badge)
+
+        layout.addWidget(rate_frame)
 
         # KPI Cards Grid
         grid = QGridLayout()
@@ -86,6 +157,11 @@ class DashboardView(QWidget):
         self.refresh_data()
 
     def refresh_data(self):
+        # 0. Refresh Main Chicken Rate
+        current_rate = SettingService.get_main_chicken_rate()
+        self.main_rate_spin.setValue(float(current_rate))
+        self.rate_status_badge.setText(f"Active: {format_currency(current_rate)} / KG")
+
         start_d, end_d = self.date_picker.get_date_range()
 
         # 1. Purchases
@@ -145,3 +221,17 @@ class DashboardView(QWidget):
             self.cust_table.setItem(r, 0, QTableWidgetItem(c_name))
             self.cust_table.setItem(r, 1, QTableWidgetItem(format_weight(data["net_weight_kg"])))
             self.cust_table.setItem(r, 2, QTableWidgetItem(format_currency(data["amount"])))
+
+    def _save_main_rate(self):
+        val = self.main_rate_spin.value()
+        try:
+            saved_rate = SettingService.set_main_chicken_rate(val)
+            self.rate_status_badge.setText(f"Active: {format_currency(saved_rate)} / KG")
+            QMessageBox.information(
+                self,
+                "Main Rate Updated",
+                f"Main chicken selling rate successfully updated to {format_currency(saved_rate)} / KG.\n\n"
+                "This rate will now auto-fill by default when recording customer sales."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save main chicken rate: {str(e)}")

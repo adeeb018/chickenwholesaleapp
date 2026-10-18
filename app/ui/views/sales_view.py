@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
 from app.services.sales_service import SalesService
+from app.services.setting_service import SettingService
 from app.ui.components.date_range_picker import DateRangePicker
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, to_decimal
 
@@ -170,7 +171,7 @@ class SalesView(QWidget):
         self.item_combo = QComboBox()
 
         self.gross_spin = QDoubleSpinBox()
-        self.gross_spin.setRange(0.001, 999999.000)
+        self.gross_spin.setRange(0.000, 999999.000)
         self.gross_spin.setDecimals(3)
         self.gross_spin.setSuffix(" KG")
 
@@ -225,7 +226,21 @@ class SalesView(QWidget):
         form_layout.addWidget(self.net_edit, 1, 5)
 
         form_layout.addWidget(QLabel("Rate (₹/KG):", self), 2, 0)
-        form_layout.addWidget(self.rate_spin, 2, 1)
+
+        rate_container = QWidget()
+        rate_box = QHBoxLayout(rate_container)
+        rate_box.setContentsMargins(0, 0, 0, 0)
+        rate_box.setSpacing(6)
+        rate_box.addWidget(self.rate_spin)
+
+        reset_rate_btn = QPushButton("↺ Main Rate")
+        reset_rate_btn.setToolTip("Reset rate to current Main Chicken Rate set in Dashboard")
+        reset_rate_btn.setProperty("class", "secondaryBtn")
+        reset_rate_btn.setStyleSheet("padding: 5px 8px; font-size: 11px;")
+        reset_rate_btn.clicked.connect(lambda: self.apply_default_rate(force=True))
+        rate_box.addWidget(reset_rate_btn)
+
+        form_layout.addWidget(rate_container, 2, 1)
         form_layout.addWidget(QLabel("Discount (₹):", self), 2, 2)
         form_layout.addWidget(self.disc_spin, 2, 3)
         form_layout.addWidget(QLabel("<b>Final Amount (AUTO):</b>", self), 2, 4)
@@ -261,6 +276,22 @@ class SalesView(QWidget):
         layout.addWidget(self.table)
 
         self.load_combos()
+        self.apply_default_rate(force=True)
+        self.refresh_table()
+
+    def apply_default_rate(self, force: bool = False):
+        """Fills the rate input with the daily main chicken rate from SettingService."""
+        main_rate = float(SettingService.get_main_chicken_rate())
+        if force or self.rate_spin.value() == 0.0:
+            self.rate_spin.setValue(main_rate)
+            self._calculate_net_and_amount()
+
+    def on_view_activated(self):
+        """Called automatically when navigating to the Sales tab."""
+        self.load_combos()
+        # If no gross weight has been typed yet, keep rate synced with latest dashboard rate
+        if self.gross_spin.value() == 0.0:
+            self.apply_default_rate(force=True)
         self.refresh_table()
 
     def load_combos(self):
@@ -331,7 +362,7 @@ class SalesView(QWidget):
             QMessageBox.information(self, "Success", "Sale transaction saved successfully!")
             self.gross_spin.setValue(0.0)
             self.box_spin.setValue(0.0)
-            self.rate_spin.setValue(0.0)
+            self.apply_default_rate(force=True)
             self.disc_spin.setValue(0.0)
             self.notes_edit.clear()
             self.refresh_table()
