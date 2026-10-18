@@ -182,3 +182,96 @@ def test_main_chicken_rate_and_sales_view_integration(qapp):
     sales_view.apply_default_rate(force=True)
     assert sales_view.rate_spin.value() == 185.50
 
+def test_sales_box_count():
+    cust = MasterService.create_customer(name="Box Count Customer")
+    item = MasterService.get_all_items()[0]
+
+    # Sale with 10 boxes, Gross 120 KG, Box weight 10 KG -> Net 110 KG @ ₹160
+    sale = SalesService.create_sale(
+        transaction_date=date(2026, 9, 23),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=120,
+        box_weight_kg=10,
+        box_count=10,
+        rate_per_kg=160
+    )
+    assert sale.box_count == 10
+    assert sale.net_weight_kg == Decimal("110.000")
+    assert sale.total_amount == Decimal("17600.00")
+
+    # Update box count
+    updated = SalesService.update_sale(
+        sale_id=sale.id,
+        transaction_date=date(2026, 9, 23),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=120,
+        box_weight_kg=10,
+        box_count=12,
+        rate_per_kg=160
+    )
+    assert updated.box_count == 12
+
+    # Negative box count validation
+    with pytest.raises(ValueError, match="Box count cannot be negative"):
+        SalesService.create_sale(
+            transaction_date=date(2026, 9, 23),
+            customer_id=cust.id,
+            item_id=item.id,
+            gross_weight_kg=100,
+            box_weight_kg=5,
+            box_count=-3,
+            rate_per_kg=160
+        )
+
+def test_sales_view_boxes_ui_and_edit_dialog(qapp, monkeypatch):
+    from app.ui.views.sales_view import SalesView, EditSaleDialog
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)
+
+    cust = MasterService.create_customer(name="Boxes Customer UI")
+    item = MasterService.get_all_items()[0]
+
+    view = SalesView()
+    view.load_combos()
+    view.customer_combo.setCurrentIndex(view.customer_combo.findData(cust.id))
+    view.item_combo.setCurrentIndex(view.item_combo.findData(item.id))
+
+    # Enter 8 boxes, 160 KG gross, 10 KG box weight, ₹170 rate
+    view.box_count_spin.setValue(8)
+    view.gross_spin.setValue(160.0)
+    view.box_spin.setValue(10.0)
+    view.rate_spin.setValue(170.0)
+
+    # Live calculate
+    view._calculate_net_and_amount()
+    assert view.net_edit.text() == "150.000 KG"
+
+    # Save sale
+    view._save_sale()
+
+    # Form reset
+    assert view.box_count_spin.value() == 0
+    assert view.gross_spin.value() == 0.0
+
+    # History table check
+    assert view.table.rowCount() >= 1
+    row = 0
+    assert view.table.item(row, 4).text() == "8"
+    assert "160.000" in view.table.item(row, 5).text()
+    assert "10.000" in view.table.item(row, 6).text()
+    assert "150.000" in view.table.item(row, 7).text()
+
+    # EditSaleDialog check
+    saved_sale = SalesService.get_sales(customer_id=cust.id)[0]
+    dlg = EditSaleDialog(saved_sale)
+    assert dlg.box_count_spin.value() == 8
+    dlg.box_count_spin.setValue(10)
+    data = dlg.get_data()
+    assert data["box_count"] == 10
+
+
+

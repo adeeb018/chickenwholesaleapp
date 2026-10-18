@@ -344,9 +344,9 @@ class InternalSalesReportTab(QWidget):
         self.summary_label.setStyleSheet("font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 10px; border-radius: 6px;")
         layout.addWidget(self.summary_label)
 
-        self.table = QTableWidget(0, 9)
+        self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Customer", "Item", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
+            "Date", "Customer", "Item", "Boxes", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
@@ -371,13 +371,14 @@ class InternalSalesReportTab(QWidget):
             self.table.setItem(r, 0, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
             self.table.setItem(r, 1, QTableWidgetItem(s.customer.name if s.customer else ""))
             self.table.setItem(r, 2, QTableWidgetItem(s.item.name if s.item else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(format_weight(s.gross_weight_kg)))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.box_weight_kg)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.net_weight_kg)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_currency(s.rate_per_kg)))
+            self.table.setItem(r, 3, QTableWidgetItem(str(getattr(s, "box_count", 0) or 0)))
+            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.gross_weight_kg)))
+            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.box_weight_kg)))
+            self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.net_weight_kg)))
+            self.table.setItem(r, 7, QTableWidgetItem(format_currency(s.rate_per_kg)))
             disc_val = getattr(s, "discount_amount", Decimal("0.00"))
-            self.table.setItem(r, 7, QTableWidgetItem(format_currency(disc_val)))
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(s.total_amount)))
+            self.table.setItem(r, 8, QTableWidgetItem(format_currency(disc_val)))
+            self.table.setItem(r, 9, QTableWidgetItem(format_currency(s.total_amount)))
 
 class WeightLossReportTab(QWidget):
     """

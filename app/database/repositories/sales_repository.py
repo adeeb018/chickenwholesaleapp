@@ -49,10 +49,12 @@ class SalesRepository:
         box_weight_kg: any,
         rate_per_kg: any,
         discount_amount: any = 0.00,
+        box_count: int = 0,
         notes: Optional[str] = None
     ) -> Sale:
         gross = round_weight(gross_weight_kg)
         box = round_weight(box_weight_kg)
+        box_cnt = int(box_count or 0)
         
         if gross <= 0:
             raise ValueError("Gross weight must be greater than 0.")
@@ -60,6 +62,8 @@ class SalesRepository:
             raise ValueError("Box weight cannot be negative.")
         if box > gross:
             raise ValueError("Box weight cannot be greater than gross weight.")
+        if box_cnt < 0:
+            raise ValueError("Box count cannot be negative.")
 
         net = round_weight(gross - box)
         rate = round_money(rate_per_kg)
@@ -77,6 +81,7 @@ class SalesRepository:
             transaction_date=transaction_date,
             customer_id=customer_id,
             item_id=item_id,
+            box_count=box_cnt,
             gross_weight_kg=gross,
             box_weight_kg=box,
             net_weight_kg=net,
@@ -100,6 +105,7 @@ class SalesRepository:
         box_weight_kg: any,
         rate_per_kg: any,
         discount_amount: any = 0.00,
+        box_count: int = 0,
         notes: Optional[str] = None
     ) -> Optional[Sale]:
         sale = self.get_by_id(sale_id)
@@ -108,6 +114,7 @@ class SalesRepository:
 
         gross = round_weight(gross_weight_kg)
         box = round_weight(box_weight_kg)
+        box_cnt = int(box_count or 0)
         
         if gross <= 0:
             raise ValueError("Gross weight must be greater than 0.")
@@ -115,6 +122,8 @@ class SalesRepository:
             raise ValueError("Box weight cannot be negative.")
         if box > gross:
             raise ValueError("Box weight cannot be greater than gross weight.")
+        if box_cnt < 0:
+            raise ValueError("Box count cannot be negative.")
 
         net = round_weight(gross - box)
         rate = round_money(rate_per_kg)
@@ -131,6 +140,7 @@ class SalesRepository:
         sale.transaction_date = transaction_date
         sale.customer_id = customer_id
         sale.item_id = item_id
+        sale.box_count = box_cnt
         sale.gross_weight_kg = gross
         sale.box_weight_kg = box
         sale.net_weight_kg = net

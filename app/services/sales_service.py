@@ -42,6 +42,7 @@ class SalesService:
         box_weight_kg: any,
         rate_per_kg: any,
         discount_amount: any = 0.00,
+        box_count: int = 0,
         notes: Optional[str] = None
     ) -> Sale:
         with session_scope() as session:
@@ -54,6 +55,7 @@ class SalesService:
                 box_weight_kg=box_weight_kg,
                 rate_per_kg=rate_per_kg,
                 discount_amount=discount_amount,
+                box_count=box_count,
                 notes=notes
             )
 
@@ -67,6 +69,7 @@ class SalesService:
         box_weight_kg: any,
         rate_per_kg: any,
         discount_amount: any = 0.00,
+        box_count: int = 0,
         notes: Optional[str] = None
     ) -> Optional[Sale]:
         with session_scope() as session:
@@ -80,6 +83,7 @@ class SalesService:
                 box_weight_kg=box_weight_kg,
                 rate_per_kg=rate_per_kg,
                 discount_amount=discount_amount,
+                box_count=box_count,
                 notes=notes
             )
 

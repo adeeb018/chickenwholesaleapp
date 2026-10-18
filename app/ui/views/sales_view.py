@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QComboBox,
-    QDoubleSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
+    QDoubleSpinBox, QSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit
 )
 from PySide6.QtCore import Qt, QDate
@@ -16,13 +16,13 @@ from app.utils.decimal_utils import format_currency, format_weight, round_weight
 
 class EditSaleDialog(QDialog):
     """
-    Dialog for Editing an Existing Sale (e.g. applying a discount later to a past sale).
+    Dialog for Editing an Existing Sale (e.g. applying a discount later to a past sale, modifying boxes or weights).
     """
     def __init__(self, sale, parent=None):
         super().__init__(parent)
         self.sale = sale
         self.setWindowTitle(f"Edit Sale #{sale.id} & Apply Discount")
-        self.resize(500, 420)
+        self.resize(500, 440)
 
         layout = QFormLayout(self)
 
@@ -45,6 +45,10 @@ class EditSaleDialog(QDialog):
         idx_i = self.item_combo.findData(sale.item_id)
         if idx_i >= 0:
             self.item_combo.setCurrentIndex(idx_i)
+
+        self.box_count_spin = QSpinBox()
+        self.box_count_spin.setRange(0, 99999)
+        self.box_count_spin.setValue(int(getattr(sale, "box_count", 0) or 0))
 
         self.gross_spin = QDoubleSpinBox()
         self.gross_spin.setRange(0.001, 999999.000)
@@ -89,6 +93,7 @@ class EditSaleDialog(QDialog):
         layout.addRow("Transaction Date:", self.date_edit)
         layout.addRow("Customer:", self.customer_combo)
         layout.addRow("Chicken Item:", self.item_combo)
+        layout.addRow("Number of Boxes:", self.box_count_spin)
         layout.addRow("Gross Weight (KG):", self.gross_spin)
         layout.addRow("Box Weight (KG):", self.box_spin)
         layout.addRow("Net Weight (AUTO):", self.net_label)
@@ -138,6 +143,7 @@ class EditSaleDialog(QDialog):
             "transaction_date": date(qd.year(), qd.month(), qd.day()),
             "customer_id": self.customer_combo.currentData(),
             "item_id": self.item_combo.currentData(),
+            "box_count": self.box_count_spin.value(),
             "gross_weight_kg": self.gross_spin.value(),
             "box_weight_kg": self.box_spin.value(),
             "rate_per_kg": self.rate_spin.value(),
@@ -171,6 +177,10 @@ class SalesView(QWidget):
 
         self.customer_combo = QComboBox()
         self.item_combo = QComboBox()
+
+        self.box_count_spin = QSpinBox()
+        self.box_count_spin.setRange(0, 99999)
+        self.box_count_spin.setValue(0)
 
         self.gross_spin = QDoubleSpinBox()
         self.gross_spin.setRange(0.000, 999999.000)
@@ -234,14 +244,16 @@ class SalesView(QWidget):
         form_layout.addWidget(QLabel("Item / Chicken:", self), 0, 4)
         form_layout.addWidget(self.item_combo, 0, 5)
 
-        form_layout.addWidget(QLabel("Gross Weight (KG):", self), 1, 0)
-        form_layout.addWidget(self.gross_spin, 1, 1)
-        form_layout.addWidget(QLabel("Box Weight (KG):", self), 1, 2)
-        form_layout.addWidget(self.box_spin, 1, 3)
-        form_layout.addWidget(QLabel("<b>Net Weight (AUTO):</b>", self), 1, 4)
-        form_layout.addWidget(self.net_edit, 1, 5)
+        form_layout.addWidget(QLabel("No. of Boxes:", self), 1, 0)
+        form_layout.addWidget(self.box_count_spin, 1, 1)
+        form_layout.addWidget(QLabel("Gross Weight (KG):", self), 1, 2)
+        form_layout.addWidget(self.gross_spin, 1, 3)
+        form_layout.addWidget(QLabel("Box Weight (KG):", self), 1, 4)
+        form_layout.addWidget(self.box_spin, 1, 5)
 
-        form_layout.addWidget(QLabel("Rate (₹/KG):", self), 2, 0)
+        form_layout.addWidget(QLabel("<b>Net Weight (AUTO):</b>", self), 2, 0)
+        form_layout.addWidget(self.net_edit, 2, 1)
+        form_layout.addWidget(QLabel("Rate (₹/KG):", self), 2, 2)
 
         rate_container = QWidget()
         rate_box = QHBoxLayout(rate_container)
@@ -256,11 +268,9 @@ class SalesView(QWidget):
         reset_rate_btn.clicked.connect(lambda: self.apply_default_rate(force=True))
         rate_box.addWidget(reset_rate_btn)
 
-        form_layout.addWidget(rate_container, 2, 1)
-        form_layout.addWidget(QLabel("Discount (₹):", self), 2, 2)
-        form_layout.addWidget(self.disc_spin, 2, 3)
-        form_layout.addWidget(QLabel("<b>Final Amount (AUTO):</b>", self), 2, 4)
-        form_layout.addWidget(self.amount_edit, 2, 5)
+        form_layout.addWidget(rate_container, 2, 3)
+        form_layout.addWidget(QLabel("Discount (₹):", self), 2, 4)
+        form_layout.addWidget(self.disc_spin, 2, 5)
 
         # Rate Adjustment Information Banner
         self.adj_info_frame = QFrame()
@@ -273,8 +283,10 @@ class SalesView(QWidget):
 
         form_layout.addWidget(self.adj_info_frame, 3, 0, 1, 6)
 
-        form_layout.addWidget(QLabel("Notes:", self), 4, 0)
-        form_layout.addWidget(self.notes_edit, 4, 1, 1, 3)
+        form_layout.addWidget(QLabel("<b>Final Amount:</b>", self), 4, 0)
+        form_layout.addWidget(self.amount_edit, 4, 1)
+        form_layout.addWidget(QLabel("Notes:", self), 4, 2)
+        form_layout.addWidget(self.notes_edit, 4, 3, 1, 2)
         form_layout.addWidget(save_btn, 4, 5)
 
         # Connect customer and date changes to auto-adjust rate
@@ -299,9 +311,9 @@ class SalesView(QWidget):
         layout.addLayout(filter_layout)
 
         # Sales History Table
-        self.table = QTableWidget(0, 11)
+        self.table = QTableWidget(0, 12)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Date", "Customer", "Item", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Actions"
+            "ID", "Date", "Customer", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Actions"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
@@ -451,6 +463,7 @@ class SalesView(QWidget):
         box = self.box_spin.value()
         rate = self.rate_spin.value()
         disc = self.disc_spin.value()
+        box_count = self.box_count_spin.value()
 
         if gross <= 0:
             QMessageBox.warning(self, "Validation Error", "Gross weight must be greater than 0.")
@@ -471,9 +484,11 @@ class SalesView(QWidget):
                 box_weight_kg=box,
                 rate_per_kg=rate,
                 discount_amount=disc,
+                box_count=box_count,
                 notes=self.notes_edit.text()
             )
             QMessageBox.information(self, "Success", "Sale transaction saved successfully!")
+            self.box_count_spin.setValue(0)
             self.gross_spin.setValue(0.0)
             self.box_spin.setValue(0.0)
             self.apply_default_rate(force=True)
@@ -495,14 +510,15 @@ class SalesView(QWidget):
             self.table.setItem(r, 1, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
             self.table.setItem(r, 2, QTableWidgetItem(s.customer.name if s.customer else ""))
             self.table.setItem(r, 3, QTableWidgetItem(s.item.name if s.item else ""))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.gross_weight_kg)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.box_weight_kg)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.net_weight_kg)))
-            self.table.setItem(r, 7, QTableWidgetItem(format_currency(s.rate_per_kg)))
+            self.table.setItem(r, 4, QTableWidgetItem(str(getattr(s, "box_count", 0) or 0)))
+            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.gross_weight_kg)))
+            self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.box_weight_kg)))
+            self.table.setItem(r, 7, QTableWidgetItem(format_weight(s.net_weight_kg)))
+            self.table.setItem(r, 8, QTableWidgetItem(format_currency(s.rate_per_kg)))
             
             disc_val = getattr(s, "discount_amount", Decimal("0.00"))
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(disc_val)))
-            self.table.setItem(r, 9, QTableWidgetItem(format_currency(s.total_amount)))
+            self.table.setItem(r, 9, QTableWidgetItem(format_currency(disc_val)))
+            self.table.setItem(r, 10, QTableWidgetItem(format_currency(s.total_amount)))
 
             # Actions column with Edit / Apply Discount button
             action_widget = QWidget()
@@ -515,7 +531,7 @@ class SalesView(QWidget):
             edit_btn.clicked.connect(lambda _, sale_obj=s: self._edit_sale(sale_obj))
 
             act_box.addWidget(edit_btn)
-            self.table.setCellWidget(r, 10, action_widget)
+            self.table.setCellWidget(r, 11, action_widget)
 
     def _edit_sale(self, sale):
         dlg = EditSaleDialog(sale=sale, parent=self)

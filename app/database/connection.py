@@ -14,11 +14,32 @@ def _migrate_schema(engine):
     """Executes automatic schema migrations for newly added columns on existing DB files."""
     try:
         with engine.connect() as conn:
+            # Sales table migrations
             result = conn.exec_driver_sql("PRAGMA table_info(sales);")
-            columns = [row[1] for row in result.fetchall()]
-            if columns and "discount_amount" not in columns:
-                conn.exec_driver_sql("ALTER TABLE sales ADD COLUMN discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00;")
-                conn.commit()
+            sales_cols = [row[1] for row in result.fetchall()]
+            if sales_cols:
+                if "discount_amount" not in sales_cols:
+                    conn.exec_driver_sql("ALTER TABLE sales ADD COLUMN discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00;")
+                if "box_count" not in sales_cols:
+                    conn.exec_driver_sql("ALTER TABLE sales ADD COLUMN box_count INTEGER NOT NULL DEFAULT 0;")
+
+            # Purchases table migrations
+            pur_res = conn.exec_driver_sql("PRAGMA table_info(purchases);")
+            pur_cols = [row[1] for row in pur_res.fetchall()]
+            if pur_cols:
+                if "box_count" not in pur_cols:
+                    conn.exec_driver_sql("ALTER TABLE purchases ADD COLUMN box_count INTEGER NOT NULL DEFAULT 0;")
+                if "gross_weight_kg" not in pur_cols:
+                    conn.exec_driver_sql("ALTER TABLE purchases ADD COLUMN gross_weight_kg DECIMAL(12,3) NOT NULL DEFAULT 0.000;")
+                if "box_weight_kg" not in pur_cols:
+                    conn.exec_driver_sql("ALTER TABLE purchases ADD COLUMN box_weight_kg DECIMAL(12,3) NOT NULL DEFAULT 0.000;")
+                if "net_weight_kg" not in pur_cols:
+                    conn.exec_driver_sql("ALTER TABLE purchases ADD COLUMN net_weight_kg DECIMAL(12,3) NOT NULL DEFAULT 0.000;")
+                
+                # Backfill gross_weight_kg and net_weight_kg for legacy purchases
+                conn.exec_driver_sql("UPDATE purchases SET gross_weight_kg = weight_kg, net_weight_kg = weight_kg WHERE gross_weight_kg = 0.000 AND weight_kg > 0;")
+            
+            conn.commit()
     except Exception as e:
         pass
 

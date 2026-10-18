@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QComboBox,
-    QDoubleSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
+    QDoubleSpinBox, QSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit
 )
 from PySide6.QtCore import Qt, QDate
@@ -14,12 +14,13 @@ from app.utils.decimal_utils import format_currency, format_weight, to_decimal
 class EditPurchaseDialog(QDialog):
     """
     Dialog for Editing an Existing Purchase record (modifying past purchase details).
+    Supports boxes count, gross weight, box weight, and net weight.
     """
     def __init__(self, purchase, parent=None):
         super().__init__(parent)
         self.purchase = purchase
         self.setWindowTitle(f"Edit Purchase #{purchase.id}")
-        self.resize(500, 420)
+        self.resize(500, 460)
 
         layout = QFormLayout(self)
 
@@ -42,11 +43,26 @@ class EditPurchaseDialog(QDialog):
         if idx_i >= 0:
             self.item_combo.setCurrentIndex(idx_i)
 
-        self.weight_spin = QDoubleSpinBox()
-        self.weight_spin.setRange(0.001, 999999.000)
-        self.weight_spin.setDecimals(3)
-        self.weight_spin.setSuffix(" KG")
-        self.weight_spin.setValue(float(purchase.weight_kg))
+        self.box_count_spin = QSpinBox()
+        self.box_count_spin.setRange(0, 99999)
+        self.box_count_spin.setValue(int(getattr(purchase, "box_count", 0) or 0))
+
+        gross_val = float(getattr(purchase, "gross_weight_kg", purchase.weight_kg) or purchase.weight_kg)
+        self.gross_spin = QDoubleSpinBox()
+        self.gross_spin.setRange(0.001, 999999.000)
+        self.gross_spin.setDecimals(3)
+        self.gross_spin.setSuffix(" KG")
+        self.gross_spin.setValue(gross_val)
+
+        box_val = float(getattr(purchase, "box_weight_kg", 0.000) or 0.000)
+        self.box_spin = QDoubleSpinBox()
+        self.box_spin.setRange(0.000, 999999.000)
+        self.box_spin.setDecimals(3)
+        self.box_spin.setSuffix(" KG")
+        self.box_spin.setValue(box_val)
+
+        self.net_label = QLabel("0.000 KG")
+        self.net_label.setStyleSheet("font-weight: bold; color: #0369a1;")
 
         self.rate_spin = QDoubleSpinBox()
         self.rate_spin.setRange(0.00, 999999.00)
@@ -70,14 +86,18 @@ class EditPurchaseDialog(QDialog):
         self.notes_edit.setMaximumHeight(60)
 
         # Connect signals for auto calculation & mode toggle
-        self.weight_spin.valueChanged.connect(self._recalc)
+        self.gross_spin.valueChanged.connect(self._recalc)
+        self.box_spin.valueChanged.connect(self._recalc)
         self.rate_spin.valueChanged.connect(self._recalc)
         self.pay_type_combo.currentIndexChanged.connect(self._on_pay_type_changed)
 
         layout.addRow("Transaction Date:", self.date_edit)
         layout.addRow("Provider:", self.provider_combo)
         layout.addRow("Chicken Item:", self.item_combo)
-        layout.addRow("Weight (KG):", self.weight_spin)
+        layout.addRow("Number of Boxes:", self.box_count_spin)
+        layout.addRow("Gross Weight (KG):", self.gross_spin)
+        layout.addRow("Box Weight (KG):", self.box_spin)
+        layout.addRow("Net Weight (AUTO):", self.net_label)
         layout.addRow("Rate (₹/KG):", self.rate_spin)
         layout.addRow("Total Amount (AUTO):", self.total_label)
         layout.addRow("Payment Type:", self.pay_type_combo)
@@ -113,9 +133,16 @@ class EditPurchaseDialog(QDialog):
             self.voucher_edit.setPlaceholderText("Voucher # (Not Required)")
 
     def _recalc(self):
-        wt = Decimal(str(self.weight_spin.value()))
+        gross = Decimal(str(self.gross_spin.value()))
+        box = Decimal(str(self.box_spin.value()))
+        if box > gross:
+            self.net_label.setText("INVALID (Box > Gross)")
+            self.total_label.setText("₹0.00")
+            return
+        net = gross - box
+        self.net_label.setText(format_weight(net))
         rate = Decimal(str(self.rate_spin.value()))
-        total = wt * rate
+        total = net * rate
         self.total_label.setText(format_currency(total))
 
     def _validate_and_accept(self):
@@ -124,8 +151,11 @@ class EditPurchaseDialog(QDialog):
         if pay_type == "CASH" and not voucher:
             QMessageBox.warning(self, "Validation Error", "Voucher number is MANDATORY for CASH payments.")
             return
-        if self.weight_spin.value() <= 0:
-            QMessageBox.warning(self, "Validation Error", "Weight must be greater than 0.")
+        if self.gross_spin.value() <= 0:
+            QMessageBox.warning(self, "Validation Error", "Gross weight must be greater than 0.")
+            return
+        if self.box_spin.value() > self.gross_spin.value():
+            QMessageBox.warning(self, "Validation Error", "Box weight CANNOT be greater than gross weight.")
             return
         self.accept()
 
@@ -135,7 +165,9 @@ class EditPurchaseDialog(QDialog):
             "transaction_date": date(qd.year(), qd.month(), qd.day()),
             "provider_id": self.provider_combo.currentData(),
             "item_id": self.item_combo.currentData(),
-            "weight_kg": self.weight_spin.value(),
+            "box_count": self.box_count_spin.value(),
+            "gross_weight_kg": self.gross_spin.value(),
+            "box_weight_kg": self.box_spin.value(),
             "rate_per_kg": self.rate_spin.value(),
             "payment_type": self.pay_type_combo.currentText(),
             "voucher_number": self.voucher_edit.text().strip() or None,
@@ -170,10 +202,23 @@ class PurchasesView(QWidget):
         self.provider_combo = QComboBox()
         self.item_combo = QComboBox()
 
-        self.weight_spin = QDoubleSpinBox()
-        self.weight_spin.setRange(0.001, 999999.000)
-        self.weight_spin.setDecimals(3)
-        self.weight_spin.setSuffix(" KG")
+        self.box_count_spin = QSpinBox()
+        self.box_count_spin.setRange(0, 99999)
+        self.box_count_spin.setValue(0)
+
+        self.gross_spin = QDoubleSpinBox()
+        self.gross_spin.setRange(0.000, 999999.000)
+        self.gross_spin.setDecimals(3)
+        self.gross_spin.setSuffix(" KG")
+
+        self.box_spin = QDoubleSpinBox()
+        self.box_spin.setRange(0.000, 999999.000)
+        self.box_spin.setDecimals(3)
+        self.box_spin.setSuffix(" KG")
+
+        self.net_edit = QLineEdit("0.000 KG")
+        self.net_edit.setReadOnly(True)
+        self.net_edit.setStyleSheet("font-weight: bold; color: #0369a1; background-color: #f0f9ff;")
 
         self.rate_spin = QDoubleSpinBox()
         self.rate_spin.setRange(0.00, 999999.00)
@@ -182,6 +227,7 @@ class PurchasesView(QWidget):
 
         self.amount_edit = QLineEdit("₹0.00")
         self.amount_edit.setReadOnly(True)
+        self.amount_edit.setStyleSheet("font-weight: bold; color: #15803d; background-color: #f0fdf4;")
 
         self.pay_type_combo = QComboBox()
         self.pay_type_combo.addItems(["CASH", "BANK"])
@@ -200,8 +246,9 @@ class PurchasesView(QWidget):
         save_btn.clicked.connect(self._save_purchase)
 
         # Live calculation
-        self.weight_spin.valueChanged.connect(self._calculate_amount)
-        self.rate_spin.valueChanged.connect(self._calculate_amount)
+        self.gross_spin.valueChanged.connect(self._calculate_net_and_amount)
+        self.box_spin.valueChanged.connect(self._calculate_net_and_amount)
+        self.rate_spin.valueChanged.connect(self._calculate_net_and_amount)
         self.pay_type_combo.currentIndexChanged.connect(self._on_pay_type_changed)
 
         form_layout.addWidget(QLabel("Date:", self), 0, 0)
@@ -211,23 +258,30 @@ class PurchasesView(QWidget):
         form_layout.addWidget(QLabel("Item / Chicken:", self), 0, 4)
         form_layout.addWidget(self.item_combo, 0, 5)
 
-        form_layout.addWidget(QLabel("Weight (KG):", self), 1, 0)
-        form_layout.addWidget(self.weight_spin, 1, 1)
-        form_layout.addWidget(QLabel("Rate (₹/KG):", self), 1, 2)
-        form_layout.addWidget(self.rate_spin, 1, 3)
-        form_layout.addWidget(QLabel("Total Amount:", self), 1, 4)
-        form_layout.addWidget(self.amount_edit, 1, 5)
+        form_layout.addWidget(QLabel("No. of Boxes:", self), 1, 0)
+        form_layout.addWidget(self.box_count_spin, 1, 1)
+        form_layout.addWidget(QLabel("Gross Weight (KG):", self), 1, 2)
+        form_layout.addWidget(self.gross_spin, 1, 3)
+        form_layout.addWidget(QLabel("Box Weight (KG):", self), 1, 4)
+        form_layout.addWidget(self.box_spin, 1, 5)
 
-        form_layout.addWidget(QLabel("Payment Type:", self), 2, 0)
-        form_layout.addWidget(self.pay_type_combo, 2, 1)
-        form_layout.addWidget(QLabel("Voucher #:", self), 2, 2)
-        form_layout.addWidget(self.voucher_edit, 2, 3)
-        form_layout.addWidget(QLabel("Bank Ref:", self), 2, 4)
-        form_layout.addWidget(self.ref_edit, 2, 5)
+        form_layout.addWidget(QLabel("<b>Net Weight (AUTO):</b>", self), 2, 0)
+        form_layout.addWidget(self.net_edit, 2, 1)
+        form_layout.addWidget(QLabel("Rate (₹/KG):", self), 2, 2)
+        form_layout.addWidget(self.rate_spin, 2, 3)
+        form_layout.addWidget(QLabel("<b>Total Amount:</b>", self), 2, 4)
+        form_layout.addWidget(self.amount_edit, 2, 5)
 
-        form_layout.addWidget(QLabel("Notes:", self), 3, 0)
-        form_layout.addWidget(self.notes_edit, 3, 1, 1, 3)
-        form_layout.addWidget(save_btn, 3, 5)
+        form_layout.addWidget(QLabel("Payment Type:", self), 3, 0)
+        form_layout.addWidget(self.pay_type_combo, 3, 1)
+        form_layout.addWidget(QLabel("Voucher #:", self), 3, 2)
+        form_layout.addWidget(self.voucher_edit, 3, 3)
+        form_layout.addWidget(QLabel("Bank Ref:", self), 3, 4)
+        form_layout.addWidget(self.ref_edit, 3, 5)
+
+        form_layout.addWidget(QLabel("Notes:", self), 4, 0)
+        form_layout.addWidget(self.notes_edit, 4, 1, 1, 4)
+        form_layout.addWidget(save_btn, 4, 5)
 
         layout.addWidget(form_frame)
 
@@ -247,9 +301,9 @@ class PurchasesView(QWidget):
         layout.addLayout(filter_layout)
 
         # Transactions Table
-        self.table = QTableWidget(0, 10)
+        self.table = QTableWidget(0, 13)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Date", "Provider", "Item", "Weight (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Voucher / Ref", "Actions"
+            "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Voucher / Ref", "Actions"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
@@ -278,10 +332,17 @@ class PurchasesView(QWidget):
             self.ref_edit.setEnabled(True)
             self.voucher_edit.setPlaceholderText("Voucher # (Not Required)")
 
-    def _calculate_amount(self):
-        wt = Decimal(str(self.weight_spin.value()))
+    def _calculate_net_and_amount(self):
+        gross = Decimal(str(self.gross_spin.value()))
+        box = Decimal(str(self.box_spin.value()))
+        if box > gross:
+            self.net_edit.setText("INVALID (Box > Gross)")
+            self.amount_edit.setText("₹0.00")
+            return
+        net = gross - box
+        self.net_edit.setText(format_weight(net))
         rate = Decimal(str(self.rate_spin.value()))
-        amt = wt * rate
+        amt = net * rate
         self.amount_edit.setText(format_currency(amt))
 
     def _save_purchase(self):
@@ -291,10 +352,16 @@ class PurchasesView(QWidget):
             QMessageBox.warning(self, "Validation Error", "Please select a provider and chicken item.")
             return
 
-        wt = self.weight_spin.value()
+        gross = self.gross_spin.value()
+        box = self.box_spin.value()
+        box_count = self.box_count_spin.value()
         rate = self.rate_spin.value()
-        if wt <= 0:
-            QMessageBox.warning(self, "Validation Error", "Weight must be greater than 0.")
+
+        if gross <= 0:
+            QMessageBox.warning(self, "Validation Error", "Gross weight must be greater than 0.")
+            return
+        if box > gross:
+            QMessageBox.warning(self, "Validation Error", "Box weight CANNOT be greater than gross weight.")
             return
 
         pay_type = self.pay_type_combo.currentText()
@@ -313,7 +380,9 @@ class PurchasesView(QWidget):
                 transaction_date=t_date,
                 provider_id=p_id,
                 item_id=i_id,
-                weight_kg=wt,
+                gross_weight_kg=gross,
+                box_weight_kg=box,
+                box_count=box_count,
                 rate_per_kg=rate,
                 payment_type=pay_type,
                 voucher_number=voucher,
@@ -321,7 +390,9 @@ class PurchasesView(QWidget):
                 notes=self.notes_edit.text()
             )
             QMessageBox.information(self, "Success", "Purchase transaction saved successfully!")
-            self.weight_spin.setValue(0.0)
+            self.box_count_spin.setValue(0)
+            self.gross_spin.setValue(0.0)
+            self.box_spin.setValue(0.0)
             self.rate_spin.setValue(0.0)
             self.voucher_edit.clear()
             self.ref_edit.clear()
@@ -342,11 +413,14 @@ class PurchasesView(QWidget):
             self.table.setItem(r, 1, QTableWidgetItem(p.transaction_date.strftime("%d/%m/%Y")))
             self.table.setItem(r, 2, QTableWidgetItem(p.provider.name if p.provider else ""))
             self.table.setItem(r, 3, QTableWidgetItem(p.item.name if p.item else ""))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(p.weight_kg)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_currency(p.rate_per_kg)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_currency(p.total_amount)))
-            self.table.setItem(r, 7, QTableWidgetItem(p.payment_type))
-            self.table.setItem(r, 8, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
+            self.table.setItem(r, 4, QTableWidgetItem(str(getattr(p, "box_count", 0) or 0)))
+            self.table.setItem(r, 5, QTableWidgetItem(format_weight(getattr(p, "gross_weight_kg", p.weight_kg))))
+            self.table.setItem(r, 6, QTableWidgetItem(format_weight(getattr(p, "box_weight_kg", Decimal("0.000")))))
+            self.table.setItem(r, 7, QTableWidgetItem(format_weight(getattr(p, "net_weight_kg", p.weight_kg))))
+            self.table.setItem(r, 8, QTableWidgetItem(format_currency(p.rate_per_kg)))
+            self.table.setItem(r, 9, QTableWidgetItem(format_currency(p.total_amount)))
+            self.table.setItem(r, 10, QTableWidgetItem(p.payment_type))
+            self.table.setItem(r, 11, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
 
             # Actions column with Edit button
             action_widget = QWidget()
@@ -359,7 +433,7 @@ class PurchasesView(QWidget):
             edit_btn.clicked.connect(lambda _, pur_obj=p: self._edit_purchase(pur_obj))
 
             act_box.addWidget(edit_btn)
-            self.table.setCellWidget(r, 9, action_widget)
+            self.table.setCellWidget(r, 12, action_widget)
 
     def _edit_purchase(self, purchase):
         dlg = EditPurchaseDialog(purchase=purchase, parent=self)
