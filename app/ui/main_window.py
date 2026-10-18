@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QStackedWidget,
-    QLabel, QFrame
+    QLabel, QFrame, QScrollArea
 )
 from PySide6.QtCore import Qt
 from app.ui.styles.theme import MAIN_QSS
@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         # Sidebar Widget
         sidebar = QFrame()
         sidebar.setObjectName("sidebarWidget")
+        sidebar.setFixedWidth(220)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(2)
@@ -107,7 +108,7 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(top_bar)
 
-        # Stacked Views
+        # Stacked Views in Scroll Area
         self.stacked = QStackedWidget()
         
         self.dashboard_view = DashboardView()
@@ -132,8 +133,15 @@ class MainWindow(QMainWindow):
         self.stacked.addWidget(self.reports_view)
         self.stacked.addWidget(self.settings_view)
 
-        right_layout.addWidget(self.stacked)
-        main_layout.addWidget(right_panel)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setWidget(self.stacked)
+
+        right_layout.addWidget(self.scroll_area)
+        main_layout.addWidget(right_panel, 1)
 
         self._switch_view(0)
 

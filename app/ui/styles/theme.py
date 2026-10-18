@@ -205,6 +205,12 @@ QTableWidget::item {
     border-bottom: 1px solid #f1f5f9;
 }
 
+/* Scroll Area */
+QScrollArea {
+    border: none;
+    background-color: transparent;
+}
+
 /* Calendar Widget (Date Picker Popup) */
 QCalendarWidget QWidget {
     background-color: #ffffff;

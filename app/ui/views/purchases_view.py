@@ -305,11 +305,8 @@ class PurchasesView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Voucher / Ref", "Actions"
         ])
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setMinimumSectionSize(75)
-        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
 
         self._on_pay_type_changed()

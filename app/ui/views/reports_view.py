@@ -55,11 +55,8 @@ class CustomerFacingStatementTab(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Net Weight (KG)", "Rate (₹/KG)", "Sale Amount (₹)", "Discount (₹)", "Amount Received (₹)", "Balance (₹)"
         ])
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setMinimumSectionSize(90)
-        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
 
         self.load_customers()
@@ -221,11 +218,8 @@ class ProviderFacingStatementTab(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Weight (KG)", "Rate (₹/KG)", "Purchase Amount (₹)", "Amount Paid (₹)", "Balance (₹)"
         ])
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setMinimumSectionSize(90)
-        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table)
 
         self.load_providers()
@@ -358,6 +352,7 @@ class InternalSalesReportTab(QWidget):
 
         self.summary_label = QLabel()
         self.summary_label.setStyleSheet("font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 10px; border-radius: 6px;")
+        self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
         self.table = QTableWidget(0, 11)

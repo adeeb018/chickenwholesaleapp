@@ -55,13 +55,13 @@ class DashboardView(QWidget):
         rate_info_box.setSpacing(2)
         rate_title = QLabel("🐔 <b>Market Rate (Daily Benchmark)</b>")
         rate_title.setStyleSheet("font-size: 15px; color: #0f172a;")
-        rate_subtitle = QLabel("Set today's market rate (₹/KG). This rate is automatically pre-filled as the default on customer sales.")
+        rate_subtitle = QLabel("Set today's market rate (₹/KG). Auto pre-filled as default on customer sales.")
         rate_subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
+        rate_subtitle.setWordWrap(True)
         rate_info_box.addWidget(rate_title)
         rate_info_box.addWidget(rate_subtitle)
 
-        rate_layout.addLayout(rate_info_box)
-        rate_layout.addStretch()
+        rate_layout.addLayout(rate_info_box, 1)
 
         self.main_rate_spin = QDoubleSpinBox()
         self.main_rate_spin.setRange(0.00, 99999.00)
@@ -99,9 +99,12 @@ class DashboardView(QWidget):
             font-weight: bold;
         """)
 
-        rate_layout.addWidget(self.main_rate_spin)
-        rate_layout.addWidget(save_rate_btn)
-        rate_layout.addWidget(self.rate_status_badge)
+        rate_controls = QHBoxLayout()
+        rate_controls.setSpacing(8)
+        rate_controls.addWidget(self.main_rate_spin)
+        rate_controls.addWidget(save_rate_btn)
+        rate_controls.addWidget(self.rate_status_badge)
+        rate_layout.addLayout(rate_controls)
 
         layout.addWidget(rate_frame)
 

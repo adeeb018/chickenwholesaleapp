@@ -410,3 +410,26 @@ def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
     assert "Boxes: 2" in tab.summary_label.text()
     assert "Avg Wt/Box: 25.000 KG" in tab.summary_label.text()
 
+def test_screen_responsiveness_and_table_filling(qapp):
+    from app.ui.main_window import MainWindow
+    from PySide6.QtWidgets import QHeaderView, QScrollArea
+
+    window = MainWindow()
+    # 1. Verify MainWindow has scroll area wrapping stacked widget so right side is never cut off
+    assert isinstance(window.scroll_area, QScrollArea)
+    assert window.scroll_area.widget() == window.stacked
+
+    # 2. Verify MainWindow can shrink cleanly on 1280 or smaller resolutions
+    assert window.minimumSizeHint().width() <= 1000
+
+    # 3. Verify Customer and Provider Statement tables have Stretch resize mode to fill page without gaps
+    cust_table = window.reports_view.cust_stmt_tab.table
+    prov_table = window.reports_view.prov_stmt_tab.table
+    assert cust_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.Stretch
+    assert prov_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.Stretch
+
+    # 4. Verify Internal Sales table preserves horizontal scrollable setup with left alignment
+    int_table = window.reports_view.internal_sales_tab.table
+    assert int_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
+    assert int_table.horizontalHeader().stretchLastSection() is False
+
