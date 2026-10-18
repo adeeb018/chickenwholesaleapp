@@ -193,10 +193,11 @@ QHeaderView::section {
     background-color: #f8fafc;
     color: #334155;
     font-weight: bold;
+    text-align: left;
     border: none;
     border-bottom: 2px solid #cbd5e1;
     border-right: 1px solid #e2e8f0;
-    padding: 8px 10px;
+    padding: 8px 12px;
 }
 
 QTableWidget::item {

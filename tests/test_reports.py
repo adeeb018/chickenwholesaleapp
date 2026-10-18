@@ -299,3 +299,61 @@ def test_statement_print_service_and_buttons(qapp, tmp_path):
     assert prov_dlg.print_btn.text() == "🖨️ Print Statement"
     assert prov_dlg.pdf_btn.text() == "📄 Save PDF"
 
+def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
+    from app.ui.views.reports_view import InternalSalesReportTab
+    from app.services.report_service import ReportService
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHeaderView
+
+    # Create customer and sale with boxes
+    cust = MasterService.create_customer(
+        name="Avg Box Test Customer",
+        phone="9876501234",
+        opening_balance=0
+    )
+    item = MasterService.get_all_items()[0]
+
+    # Sale with 5 boxes: Gross 150 KG, Box wt 20 KG -> Net 130 KG
+    # Avg per box = 130 / 5 = 26.000 KG
+    sale = SalesService.create_sale(
+        transaction_date=date(2026, 9, 15),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=150,
+        box_weight_kg=20,
+        rate_per_kg=100,
+        box_count=5
+    )
+
+    tab = InternalSalesReportTab()
+    # Check table column configuration and horizontal scrollable setup
+    assert tab.table.columnCount() == 11
+    assert tab.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert tab.table.horizontalHeader().defaultAlignment() == (Qt.AlignLeft | Qt.AlignVCenter)
+    assert tab.table.horizontalHeader().stretchLastSection() is False
+
+    headers = [tab.table.horizontalHeaderItem(c).text() for c in range(tab.table.columnCount())]
+    assert "Avg Wt/Box (KG)" in headers
+    assert headers.index("Avg Wt/Box (KG)") == 7
+
+    # Generate report for that date
+    tab.date_picker.set_date_range(date(2026, 9, 15), date(2026, 9, 15))
+    tab.generate_report()
+
+    # Verify summary banner contains Avg Wt/Box and Boxes
+    assert "Boxes: 5" in tab.summary_label.text()
+    assert "Avg Wt/Box: 26.000 KG" in tab.summary_label.text()
+
+    # Find the row for our sale
+    found = False
+    for r in range(tab.table.rowCount()):
+        if tab.table.item(r, 1).text() == "Avg Box Test Customer":
+            found = True
+            assert tab.table.item(r, 3).text() == "5" # Boxes
+            assert tab.table.item(r, 4).text() == "150.000 KG" # Gross
+            assert tab.table.item(r, 5).text() == "20.000 KG" # Box Wt
+            assert tab.table.item(r, 6).text() == "130.000 KG" # Net Wt
+            assert tab.table.item(r, 7).text() == "26.000 KG" # Avg Wt / Box
+            break
+    assert found
+

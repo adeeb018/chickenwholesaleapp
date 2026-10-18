@@ -315,7 +315,11 @@ class SalesView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Date", "Customer", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Actions"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setMinimumSectionSize(75)
+        self.table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(self.table)
 
         self.load_combos()

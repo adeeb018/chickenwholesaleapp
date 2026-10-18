@@ -11,7 +11,7 @@ from app.services.report_service import ReportService
 from app.services.weight_loss_service import WeightLossService
 from app.services.statement_print_service import StatementPrintService
 from app.ui.components.date_range_picker import DateRangePicker
-from app.utils.decimal_utils import format_currency, format_weight
+from app.utils.decimal_utils import format_currency, format_weight, round_weight, to_decimal
 
 class CustomerFacingStatementTab(QWidget):
     """
@@ -55,7 +55,11 @@ class CustomerFacingStatementTab(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Net Weight (KG)", "Rate (₹/KG)", "Sale Amount (₹)", "Discount (₹)", "Amount Received (₹)", "Balance (₹)"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setMinimumSectionSize(90)
+        self.table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(self.table)
 
         self.load_customers()
@@ -217,7 +221,11 @@ class ProviderFacingStatementTab(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Weight (KG)", "Rate (₹/KG)", "Purchase Amount (₹)", "Amount Paid (₹)", "Balance (₹)"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setMinimumSectionSize(90)
+        self.table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(self.table)
 
         self.load_providers()
@@ -344,22 +352,31 @@ class InternalSalesReportTab(QWidget):
         self.summary_label.setStyleSheet("font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 10px; border-radius: 6px;")
         layout.addWidget(self.summary_label)
 
-        self.table = QTableWidget(0, 10)
+        self.table = QTableWidget(0, 11)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Customer", "Item", "Boxes", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
+            "Date", "Customer", "Item", "Boxes", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Avg Wt/Box (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setMinimumSectionSize(85)
+        self.table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(self.table)
 
     def generate_report(self):
         start_d, end_d = self.date_picker.get_date_range()
         summary = ReportService.get_sales_summary(start_d, end_d)
 
+        tot_boxes = summary.get("total_boxes_count", 0)
+        avg_box_str = format_weight(summary.get("avg_weight_per_box_kg", Decimal("0.000"))) if tot_boxes > 0 else "-"
+
         self.summary_label.setText(
             f"INTERNAL SALES REPORT ({start_d.strftime('%d/%m/%Y')} - {end_d.strftime('%d/%m/%Y')}) | "
+            f"Boxes: {tot_boxes} | "
             f"Gross: {format_weight(summary['total_gross_weight_kg'])} | "
             f"Box: {format_weight(summary['total_box_weight_kg'])} | "
             f"Net: {format_weight(summary['total_net_weight_kg'])} | "
+            f"Avg Wt/Box: {avg_box_str} | "
             f"Discounts: {format_currency(summary['total_discount_amount'])} | "
             f"Final Sales: {format_currency(summary['total_amount'])}"
         )
@@ -371,14 +388,25 @@ class InternalSalesReportTab(QWidget):
             self.table.setItem(r, 0, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
             self.table.setItem(r, 1, QTableWidgetItem(s.customer.name if s.customer else ""))
             self.table.setItem(r, 2, QTableWidgetItem(s.item.name if s.item else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(str(getattr(s, "box_count", 0) or 0)))
+            boxes = int(getattr(s, "box_count", 0) or 0)
+            self.table.setItem(r, 3, QTableWidgetItem(str(boxes)))
             self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.gross_weight_kg)))
             self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.box_weight_kg)))
             self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.net_weight_kg)))
-            self.table.setItem(r, 7, QTableWidgetItem(format_currency(s.rate_per_kg)))
+            
+            # Avg Weight per Box = Net Weight / Number of Boxes (for cross verification)
+            net_val = to_decimal(s.net_weight_kg)
+            if boxes > 0:
+                avg_val = round_weight(net_val / boxes)
+                avg_str = format_weight(avg_val)
+            else:
+                avg_str = "-"
+            self.table.setItem(r, 7, QTableWidgetItem(avg_str))
+
+            self.table.setItem(r, 8, QTableWidgetItem(format_currency(s.rate_per_kg)))
             disc_val = getattr(s, "discount_amount", Decimal("0.00"))
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(disc_val)))
-            self.table.setItem(r, 9, QTableWidgetItem(format_currency(s.total_amount)))
+            self.table.setItem(r, 9, QTableWidgetItem(format_currency(disc_val)))
+            self.table.setItem(r, 10, QTableWidgetItem(format_currency(s.total_amount)))
 
 class WeightLossReportTab(QWidget):
     """

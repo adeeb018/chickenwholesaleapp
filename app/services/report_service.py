@@ -111,6 +111,7 @@ class ReportService:
             total_net = Decimal("0.000")
             total_discount = Decimal("0.00")
             total_amount = Decimal("0.00")
+            total_boxes = 0
             customers_set = set()
 
             customer_breakdown = {}
@@ -121,32 +122,40 @@ class ReportService:
                 net = to_decimal(s.net_weight_kg)
                 disc = to_decimal(getattr(s, "discount_amount", 0.00))
                 amt = to_decimal(s.total_amount)
+                box_cnt = int(getattr(s, "box_count", 0) or 0)
 
                 total_gross += gross
                 total_box += box
                 total_net += net
                 total_discount += disc
                 total_amount += amt
+                total_boxes += box_cnt
                 customers_set.add(s.customer_id)
 
                 c_name = s.customer.name if s.customer else "Unknown Customer"
                 if c_name not in customer_breakdown:
                     customer_breakdown[c_name] = {
+                        "boxes": 0,
                         "gross_weight_kg": Decimal("0.000"),
                         "box_weight_kg": Decimal("0.000"),
                         "net_weight_kg": Decimal("0.000"),
                         "discount": Decimal("0.00"),
                         "amount": Decimal("0.00")
                     }
+                customer_breakdown[c_name]["boxes"] += box_cnt
                 customer_breakdown[c_name]["gross_weight_kg"] += gross
                 customer_breakdown[c_name]["box_weight_kg"] += box
                 customer_breakdown[c_name]["net_weight_kg"] += net
                 customer_breakdown[c_name]["discount"] += disc
                 customer_breakdown[c_name]["amount"] += amt
 
+            avg_box_wt = round_weight(total_net / total_boxes) if total_boxes > 0 else Decimal("0.000")
+
             return {
                 "start_date": start_date,
                 "end_date": end_date,
+                "total_boxes_count": total_boxes,
+                "avg_weight_per_box_kg": avg_box_wt,
                 "total_gross_weight_kg": round_weight(total_gross),
                 "total_box_weight_kg": round_weight(total_box),
                 "total_net_weight_kg": round_weight(total_net),
