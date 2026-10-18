@@ -302,27 +302,51 @@ def test_statement_print_service_and_buttons(qapp, tmp_path):
 def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
     from app.ui.views.reports_view import InternalSalesReportTab
     from app.services.report_service import ReportService
+    from app.utils.date_utils import DateRangePreset, get_date_range_for_preset
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QHeaderView
 
-    # Create customer and sale with boxes
-    cust = MasterService.create_customer(
-        name="Avg Box Test Customer",
+    # Verify This Year preset in date_utils
+    today = date.today()
+    start_yr, end_yr = get_date_range_for_preset(DateRangePreset.THIS_YEAR, today)
+    assert start_yr == date(today.year, 1, 1)
+    assert end_yr == date(today.year, 12, 31)
+
+    # Create customers and sales with boxes
+    cust1 = MasterService.create_customer(
+        name="Avg Box Customer 1",
         phone="9876501234",
+        opening_balance=0
+    )
+    cust2 = MasterService.create_customer(
+        name="Avg Box Customer 2",
+        phone="9876501235",
         opening_balance=0
     )
     item = MasterService.get_all_items()[0]
 
-    # Sale with 5 boxes: Gross 150 KG, Box wt 20 KG -> Net 130 KG
+    # Sale 1 with 5 boxes: Gross 150 KG, Box wt 20 KG -> Net 130 KG
     # Avg per box = 130 / 5 = 26.000 KG
-    sale = SalesService.create_sale(
+    sale1 = SalesService.create_sale(
         transaction_date=date(2026, 9, 15),
-        customer_id=cust.id,
+        customer_id=cust1.id,
         item_id=item.id,
         gross_weight_kg=150,
         box_weight_kg=20,
         rate_per_kg=100,
         box_count=5
+    )
+
+    # Sale 2 with 2 boxes: Gross 60 KG, Box wt 10 KG -> Net 50 KG
+    # Avg per box = 50 / 2 = 25.000 KG
+    sale2 = SalesService.create_sale(
+        transaction_date=date(2026, 9, 15),
+        customer_id=cust2.id,
+        item_id=item.id,
+        gross_weight_kg=60,
+        box_weight_kg=10,
+        rate_per_kg=110,
+        box_count=2
     )
 
     tab = InternalSalesReportTab()
@@ -332,28 +356,57 @@ def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
     assert tab.table.horizontalHeader().defaultAlignment() == (Qt.AlignLeft | Qt.AlignVCenter)
     assert tab.table.horizontalHeader().stretchLastSection() is False
 
+    # Check header order: Net Weight -> Boxes -> Avg Wt/Box
     headers = [tab.table.horizontalHeaderItem(c).text() for c in range(tab.table.columnCount())]
-    assert "Avg Wt/Box (KG)" in headers
-    assert headers.index("Avg Wt/Box (KG)") == 7
+    assert headers[3] == "Gross Weight (KG)"
+    assert headers[4] == "Box Weight (KG)"
+    assert headers[5] == "Net Weight (KG)"
+    assert headers[6] == "Boxes"
+    assert headers[7] == "Avg Wt/Box (KG)"
 
-    # Generate report for that date
+    # Verify "This Year" is present in the DateRangePicker presets
+    preset_items = [tab.date_picker.preset_combo.itemText(i) for i in range(tab.date_picker.preset_combo.count())]
+    assert "This Year" in preset_items
+
+    # Verify customer filter exists with "All" as first option
+    assert tab.customer_combo.count() >= 3
+    assert tab.customer_combo.itemText(0) == "All"
+    assert tab.customer_combo.itemData(0) is None
+
+    # Generate report for that date with "All" customers
     tab.date_picker.set_date_range(date(2026, 9, 15), date(2026, 9, 15))
+    tab.customer_combo.setCurrentIndex(0)
     tab.generate_report()
 
-    # Verify summary banner contains Avg Wt/Box and Boxes
-    assert "Boxes: 5" in tab.summary_label.text()
-    assert "Avg Wt/Box: 26.000 KG" in tab.summary_label.text()
+    # Verify summary banner contains total boxes (5 + 2 = 7) and combined Avg Wt/Box (180 / 7 = 25.714)
+    assert "Boxes: 7" in tab.summary_label.text()
+    assert "Avg Wt/Box: 25.714 KG" in tab.summary_label.text()
 
-    # Find the row for our sale
-    found = False
-    for r in range(tab.table.rowCount()):
-        if tab.table.item(r, 1).text() == "Avg Box Test Customer":
-            found = True
-            assert tab.table.item(r, 3).text() == "5" # Boxes
-            assert tab.table.item(r, 4).text() == "150.000 KG" # Gross
-            assert tab.table.item(r, 5).text() == "20.000 KG" # Box Wt
-            assert tab.table.item(r, 6).text() == "130.000 KG" # Net Wt
-            assert tab.table.item(r, 7).text() == "26.000 KG" # Avg Wt / Box
-            break
-    assert found
+    # Verify both rows are present
+    rows_c1 = [r for r in range(tab.table.rowCount()) if tab.table.item(r, 1).text() == "Avg Box Customer 1"]
+    rows_c2 = [r for r in range(tab.table.rowCount()) if tab.table.item(r, 1).text() == "Avg Box Customer 2"]
+    assert len(rows_c1) == 1
+    assert len(rows_c2) == 1
+
+    r1 = rows_c1[0]
+    assert tab.table.item(r1, 3).text() == "150.000 KG" # Gross
+    assert tab.table.item(r1, 4).text() == "20.000 KG"  # Box Wt
+    assert tab.table.item(r1, 5).text() == "130.000 KG" # Net Wt
+    assert tab.table.item(r1, 6).text() == "5"          # Boxes
+    assert tab.table.item(r1, 7).text() == "26.000 KG"  # Avg Wt / Box
+
+    # Filter by specific customer (cust2)
+    idx2 = tab.customer_combo.findData(cust2.id)
+    assert idx2 >= 0
+    tab.customer_combo.setCurrentIndex(idx2)
+
+    # Now only cust2 should be in the table
+    assert tab.table.rowCount() == 1
+    assert tab.table.item(0, 1).text() == "Avg Box Customer 2"
+    assert tab.table.item(0, 5).text() == "50.000 KG"
+    assert tab.table.item(0, 6).text() == "2"
+    assert tab.table.item(0, 7).text() == "25.000 KG"
+    assert "Avg Box Customer 2" in tab.summary_label.text()
+    assert "Boxes: 2" in tab.summary_label.text()
+    assert "Avg Wt/Box: 25.000 KG" in tab.summary_label.text()
 

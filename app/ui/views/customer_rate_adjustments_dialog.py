@@ -265,7 +265,7 @@ class AddRateAdjustmentDialog(QDialog):
         effective = max(Decimal("0.00"), main_rate + adj)
         sign = "+" if adj >= 0 else ""
         self.preview_label.setText(
-            f"Preview with Main Rate ({format_currency(main_rate)}): {sign}{format_currency(adj)} ➔ Effective: {format_currency(effective)} / KG"
+            f"Preview with Market Rate ({format_currency(main_rate)}): {sign}{format_currency(adj)} ➔ Effective: {format_currency(effective)} / KG"
         )
 
     def _validate_dates(self):

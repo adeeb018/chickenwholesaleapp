@@ -53,7 +53,7 @@ class DashboardView(QWidget):
 
         rate_info_box = QVBoxLayout()
         rate_info_box.setSpacing(2)
-        rate_title = QLabel("🐔 <b>Main Chicken Rate (Daily Benchmark)</b>")
+        rate_title = QLabel("🐔 <b>Market Rate (Daily Benchmark)</b>")
         rate_title.setStyleSheet("font-size: 15px; color: #0f172a;")
         rate_subtitle = QLabel("Set today's market rate (₹/KG). This rate is automatically pre-filled as the default on customer sales.")
         rate_subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
@@ -84,7 +84,7 @@ class DashboardView(QWidget):
             }
         """)
 
-        save_rate_btn = QPushButton("💾 Set Main Rate")
+        save_rate_btn = QPushButton("💾 Set Market Rate")
         save_rate_btn.setProperty("class", "primaryBtn")
         save_rate_btn.clicked.connect(self._save_main_rate)
 
@@ -229,8 +229,8 @@ class DashboardView(QWidget):
             self.rate_status_badge.setText(f"Active: {format_currency(saved_rate)} / KG")
             QMessageBox.information(
                 self,
-                "Main Rate Updated",
-                f"Main chicken selling rate successfully updated to {format_currency(saved_rate)} / KG.\n\n"
+                "Market Rate Updated",
+                f"Market chicken selling rate successfully updated to {format_currency(saved_rate)} / KG.\n\n"
                 "This rate will now auto-fill by default when recording customer sales."
             )
         except Exception as e:

@@ -9,6 +9,8 @@ class DateRangePreset(Enum):
     PREVIOUS_WEEK = "Previous Week"
     THIS_MONTH = "This Month"
     PREVIOUS_MONTH = "Previous Month"
+    THIS_YEAR = "This Year"
+    PREVIOUS_YEAR = "Previous Year"
     CUSTOM = "Custom Date Range"
 
 def get_date_range_for_preset(
@@ -54,6 +56,16 @@ def get_date_range_for_preset(
         end_prev_month = first_of_this_month - timedelta(days=1)
         start_prev_month = end_prev_month.replace(day=1)
         return start_prev_month, end_prev_month
+
+    elif preset == DateRangePreset.THIS_YEAR:
+        start = ref.replace(month=1, day=1)
+        end = ref.replace(month=12, day=31)
+        return start, end
+
+    elif preset == DateRangePreset.PREVIOUS_YEAR:
+        start = ref.replace(year=ref.year - 1, month=1, day=1)
+        end = ref.replace(year=ref.year - 1, month=12, day=31)
+        return start, end
 
     else:
         # CUSTOM or fallback

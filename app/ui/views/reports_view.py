@@ -345,6 +345,14 @@ class InternalSalesReportTab(QWidget):
         self.date_picker = DateRangePicker()
         self.date_picker.date_range_changed.connect(self.generate_report)
         top_layout.addWidget(self.date_picker)
+
+        top_layout.addWidget(QLabel("Customer:"))
+        self.customer_combo = QComboBox()
+        self.customer_combo.setMinimumWidth(180)
+        self.load_customers()
+        self.customer_combo.currentIndexChanged.connect(self.generate_report)
+        top_layout.addWidget(self.customer_combo)
+
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -354,7 +362,7 @@ class InternalSalesReportTab(QWidget):
 
         self.table = QTableWidget(0, 11)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Customer", "Item", "Boxes", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Avg Wt/Box (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
+            "Date", "Customer", "Item", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Boxes", "Avg Wt/Box (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
         ])
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -363,15 +371,36 @@ class InternalSalesReportTab(QWidget):
         self.table.horizontalHeader().setStretchLastSection(False)
         layout.addWidget(self.table)
 
+        self.generate_report()
+
+    def load_customers(self):
+        prev_id = self.customer_combo.currentData() if hasattr(self, "customer_combo") else None
+        self.customer_combo.blockSignals(True)
+        self.customer_combo.clear()
+        self.customer_combo.addItem("All", None)
+        for c in MasterService.get_all_customers():
+            self.customer_combo.addItem(c.name, c.id)
+
+        if prev_id is not None:
+            idx = self.customer_combo.findData(prev_id)
+            if idx >= 0:
+                self.customer_combo.setCurrentIndex(idx)
+        else:
+            self.customer_combo.setCurrentIndex(0)
+        self.customer_combo.blockSignals(False)
+
     def generate_report(self):
         start_d, end_d = self.date_picker.get_date_range()
-        summary = ReportService.get_sales_summary(start_d, end_d)
+        cust_id = self.customer_combo.currentData() if hasattr(self, "customer_combo") else None
+        summary = ReportService.get_sales_summary(start_d, end_d, customer_id=cust_id)
 
         tot_boxes = summary.get("total_boxes_count", 0)
         avg_box_str = format_weight(summary.get("avg_weight_per_box_kg", Decimal("0.000"))) if tot_boxes > 0 else "-"
 
+        cust_title = f" - {self.customer_combo.currentText()}" if cust_id else ""
+
         self.summary_label.setText(
-            f"INTERNAL SALES REPORT ({start_d.strftime('%d/%m/%Y')} - {end_d.strftime('%d/%m/%Y')}) | "
+            f"INTERNAL SALES REPORT{cust_title} ({start_d.strftime('%d/%m/%Y')} - {end_d.strftime('%d/%m/%Y')}) | "
             f"Boxes: {tot_boxes} | "
             f"Gross: {format_weight(summary['total_gross_weight_kg'])} | "
             f"Box: {format_weight(summary['total_box_weight_kg'])} | "
@@ -388,11 +417,11 @@ class InternalSalesReportTab(QWidget):
             self.table.setItem(r, 0, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
             self.table.setItem(r, 1, QTableWidgetItem(s.customer.name if s.customer else ""))
             self.table.setItem(r, 2, QTableWidgetItem(s.item.name if s.item else ""))
+            self.table.setItem(r, 3, QTableWidgetItem(format_weight(s.gross_weight_kg)))
+            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.box_weight_kg)))
+            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.net_weight_kg)))
             boxes = int(getattr(s, "box_count", 0) or 0)
-            self.table.setItem(r, 3, QTableWidgetItem(str(boxes)))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.gross_weight_kg)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.box_weight_kg)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.net_weight_kg)))
+            self.table.setItem(r, 6, QTableWidgetItem(str(boxes)))
             
             # Avg Weight per Box = Net Weight / Number of Boxes (for cross verification)
             net_val = to_decimal(s.net_weight_kg)
@@ -490,5 +519,6 @@ class ReportsView(QWidget):
     def refresh_data(self):
         self.cust_stmt_tab.load_customers()
         self.prov_stmt_tab.load_providers()
+        self.internal_sales_tab.load_customers()
         self.internal_sales_tab.generate_report()
         self.weight_loss_tab.generate_report()
