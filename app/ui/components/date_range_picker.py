@@ -86,3 +86,16 @@ class DateRangePicker(QWidget):
             date(q_start.year(), q_start.month(), q_start.day()),
             date(q_end.year(), q_end.month(), q_end.day())
         )
+
+    def set_date_range(self, start_date: date, end_date: date):
+        self._updating = True
+        idx = self.preset_combo.findData(DateRangePreset.CUSTOM)
+        if idx >= 0:
+            self.preset_combo.setCurrentIndex(idx)
+        self.start_date_edit.setEnabled(True)
+        self.end_date_edit.setEnabled(True)
+        self.start_date_edit.setDate(QDate(start_date.year, start_date.month, start_date.day))
+        self.end_date_edit.setDate(QDate(end_date.year, end_date.month, end_date.day))
+        self._updating = False
+        self._emit_change()
+

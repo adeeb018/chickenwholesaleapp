@@ -8,9 +8,11 @@ A production-quality, cross-platform Python desktop application (**PySide6 / Qt6
 
 * **Purchases Management**: Record chicken purchases from providers (Weight in KG, Rate in ₹/KG, Total Amount). Enforces mandatory **Voucher Numbers** for CASH payments and optional bank references for BANK payments.
 * **Sales Management**: Record sales to customers with automatic **Net Weight** computation (`Net Weight = Gross Weight - Box Weight`) and automatic amount computation (`Net Weight × Rate`). Prevents invalid box weight (`Box Weight > Gross Weight`).
-* **Two-Tiered Sales Reports**:
-  * **Customer-Facing Statement**: Displays Net Weight, Rate, and Amount. **Box Weight is strictly hidden**.
-  * **Internal Shop Report**: Displays Gross Weight, Box Weight, Net Weight, Rate, and Amount for internal shop calculations.
+* **Reports Hub Statements & Analytics**:
+  * **Customer-Facing Statement**: Displays Date, Item/Description, Net Weight, Rate, Sale Amount (occurred), Customer Discount, Amount Received, and Running Balance. Positive/negative amounts are completely separated into dedicated accounting columns. **Box Weight is strictly hidden**.
+  * **Provider Statement (Supplier-Facing)**: Displays Date, Item/Description, Weight in KG, Rate in ₹/KG, Purchase Amount (occurred), Amount Paid, and Running Balance.
+  * **Internal Shop Sales Report**: Displays Gross Weight, Box Weight, Net Weight, Rate, Discounts, and Final Amount for internal shop calculations.
+  * **Weight Loss Analysis**: Analyzes chicken weight discrepancy between purchases and net sales.
 * **Customer & Provider Accounting**:
   * Track master records and initial **Opening Balances**.
   * Chronological ledger with period-based opening balance calculations (calculates accurate opening balance as of any selected start date by aggregating all prior sales/purchases and payments).
