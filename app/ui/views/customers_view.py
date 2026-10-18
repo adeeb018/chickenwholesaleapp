@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QDialog, QFormLayout, QDoubleSpinBox, QDateEdit,
@@ -10,6 +11,7 @@ from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
 from app.services.statement_print_service import StatementPrintService
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.views.customer_rate_adjustments_dialog import CustomerRateAdjustmentsDialog
 from app.utils.decimal_utils import format_currency
 
 class CustomerDialog(QDialog):
@@ -173,8 +175,13 @@ class CustomersView(QWidget):
         add_btn.setProperty("class", "primaryBtn")
         add_btn.clicked.connect(self._add_customer)
 
+        adj_btn = QPushButton("🏷️ Rate Adjustments")
+        adj_btn.setProperty("class", "secondaryBtn")
+        adj_btn.clicked.connect(lambda: self._open_rate_adjustments())
+
         header_layout.addWidget(header)
         header_layout.addStretch()
+        header_layout.addWidget(adj_btn)
         header_layout.addWidget(add_btn)
         layout.addLayout(header_layout)
 
@@ -237,10 +244,19 @@ class CustomersView(QWidget):
             delete_btn.setProperty("class", "dangerBtn")
             delete_btn.clicked.connect(lambda _, cust=c: self._delete_customer(cust))
 
+            rate_adj_btn = QPushButton("Rate Adj.")
+            rate_adj_btn.setProperty("class", "secondaryBtn")
+            rate_adj_btn.clicked.connect(lambda _, cid=c.id: self._open_rate_adjustments(customer_id=cid))
+
             act_box.addWidget(ledger_btn)
+            act_box.addWidget(rate_adj_btn)
             act_box.addWidget(edit_btn)
             act_box.addWidget(delete_btn)
             self.table.setCellWidget(r, 5, action_widget)
+
+    def _open_rate_adjustments(self, customer_id: Optional[int] = None):
+        dlg = CustomerRateAdjustmentsDialog(preselected_customer_id=customer_id, parent=self)
+        dlg.exec()
 
     def _add_customer(self):
         dlg = CustomerDialog(parent=self)

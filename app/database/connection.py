@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from app.config.settings import get_database_uri, get_db_path
 from app.database.base import Base
-from app.database.models import Item, AppSetting
+from app.database.models import Item, AppSetting, CustomerRateAdjustment
 
 _engine = None
 _SessionLocal = None

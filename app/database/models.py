@@ -20,6 +20,9 @@ class Customer(Base, TimestampMixin, SoftDeleteMixin):
     )
     sales = relationship("Sale", back_populates="customer")
     payments = relationship("CustomerPayment", back_populates="customer")
+    rate_adjustments = relationship(
+        "CustomerRateAdjustment", back_populates="customer", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Customer id={self.id} name='{self.name}'>"
@@ -153,3 +156,21 @@ class AppSetting(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<AppSetting key='{self.key}' value='{self.value}'>"
+
+class CustomerRateAdjustment(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "customer_rate_adjustments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False, index=True)
+    adjustment_per_kg = Column(Numeric(12, 2), nullable=False, default=0.00)
+    start_date = Column(Date, nullable=False, index=True)
+    end_date = Column(Date, nullable=False, index=True)
+    days_of_week = Column(String(50), nullable=True, default="MON,TUE,WED,THU,FRI,SAT,SUN")
+    notes = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    customer = relationship("Customer", back_populates="rate_adjustments")
+
+    def __repr__(self):
+        return f"<CustomerRateAdjustment id={self.id} customer_id={self.customer_id} adj={self.adjustment_per_kg} {self.start_date}->{self.end_date}>"
+

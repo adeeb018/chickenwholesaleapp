@@ -9,6 +9,8 @@ from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
 from app.services.sales_service import SalesService
 from app.services.setting_service import SettingService
+from app.services.customer_rate_adjustment_service import CustomerRateAdjustmentService
+from app.ui.views.customer_rate_adjustments_dialog import CustomerRateAdjustmentsDialog
 from app.ui.components.date_range_picker import DateRangePicker
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, to_decimal
 
@@ -214,7 +216,21 @@ class SalesView(QWidget):
         form_layout.addWidget(QLabel("Date:", self), 0, 0)
         form_layout.addWidget(self.date_edit, 0, 1)
         form_layout.addWidget(QLabel("Customer:", self), 0, 2)
-        form_layout.addWidget(self.customer_combo, 0, 3)
+
+        cust_container = QWidget()
+        cust_box = QHBoxLayout(cust_container)
+        cust_box.setContentsMargins(0, 0, 0, 0)
+        cust_box.setSpacing(4)
+        cust_box.addWidget(self.customer_combo)
+
+        manage_adj_btn = QPushButton("🏷️ Rate Adj.")
+        manage_adj_btn.setToolTip("Manage Custom Rate Adjustments for Customers")
+        manage_adj_btn.setProperty("class", "secondaryBtn")
+        manage_adj_btn.setStyleSheet("padding: 5px 8px; font-size: 11px;")
+        manage_adj_btn.clicked.connect(self._open_rate_adjustments_from_sales)
+        cust_box.addWidget(manage_adj_btn)
+
+        form_layout.addWidget(cust_container, 0, 3)
         form_layout.addWidget(QLabel("Item / Chicken:", self), 0, 4)
         form_layout.addWidget(self.item_combo, 0, 5)
 
@@ -233,8 +249,8 @@ class SalesView(QWidget):
         rate_box.setSpacing(6)
         rate_box.addWidget(self.rate_spin)
 
-        reset_rate_btn = QPushButton("↺ Main Rate")
-        reset_rate_btn.setToolTip("Reset rate to current Main Chicken Rate set in Dashboard")
+        reset_rate_btn = QPushButton("↺ Default Rate")
+        reset_rate_btn.setToolTip("Reset rate to customer's default rate (Main Benchmark Rate + Party Adjustment)")
         reset_rate_btn.setProperty("class", "secondaryBtn")
         reset_rate_btn.setStyleSheet("padding: 5px 8px; font-size: 11px;")
         reset_rate_btn.clicked.connect(lambda: self.apply_default_rate(force=True))
@@ -246,9 +262,24 @@ class SalesView(QWidget):
         form_layout.addWidget(QLabel("<b>Final Amount (AUTO):</b>", self), 2, 4)
         form_layout.addWidget(self.amount_edit, 2, 5)
 
-        form_layout.addWidget(QLabel("Notes:", self), 3, 0)
-        form_layout.addWidget(self.notes_edit, 3, 1, 1, 3)
-        form_layout.addWidget(save_btn, 3, 5)
+        # Rate Adjustment Information Banner
+        self.adj_info_frame = QFrame()
+        self.adj_info_frame.setProperty("class", "cardFrame")
+        adj_info_layout = QHBoxLayout(self.adj_info_frame)
+        adj_info_layout.setContentsMargins(10, 6, 10, 6)
+        self.adj_info_label = QLabel()
+        self.adj_info_label.setWordWrap(True)
+        adj_info_layout.addWidget(self.adj_info_label)
+
+        form_layout.addWidget(self.adj_info_frame, 3, 0, 1, 6)
+
+        form_layout.addWidget(QLabel("Notes:", self), 4, 0)
+        form_layout.addWidget(self.notes_edit, 4, 1, 1, 3)
+        form_layout.addWidget(save_btn, 4, 5)
+
+        # Connect customer and date changes to auto-adjust rate
+        self.customer_combo.currentIndexChanged.connect(self._on_customer_or_date_changed)
+        self.date_edit.dateChanged.connect(self._on_customer_or_date_changed)
 
         layout.addWidget(form_frame)
 
@@ -280,24 +311,107 @@ class SalesView(QWidget):
         self.refresh_table()
 
     def apply_default_rate(self, force: bool = False):
-        """Fills the rate input with the daily main chicken rate from SettingService."""
-        main_rate = float(SettingService.get_main_chicken_rate())
+        """Fills the rate input with the customer's effective rate (or daily main rate if no adjustment)."""
+        c_id = self.customer_combo.currentData()
+        qd = self.date_edit.date()
+        t_date = date(qd.year(), qd.month(), qd.day())
+
+        if c_id:
+            eff_rate, adj, main_rate = CustomerRateAdjustmentService.get_effective_rate_for_customer(c_id, t_date)
+        else:
+            main_rate = SettingService.get_main_chicken_rate()
+            eff_rate, adj = main_rate, None
+
         if force or self.rate_spin.value() == 0.0:
-            self.rate_spin.setValue(main_rate)
+            self.rate_spin.setValue(float(eff_rate))
             self._calculate_net_and_amount()
+
+        self._update_adjustment_banner(eff_rate, adj, main_rate)
+
+    def _on_customer_or_date_changed(self):
+        """Triggered when customer or date changes to re-evaluate differential rate."""
+        if self.gross_spin.value() == 0.0:
+            self.apply_default_rate(force=True)
+        else:
+            c_id = self.customer_combo.currentData()
+            qd = self.date_edit.date()
+            t_date = date(qd.year(), qd.month(), qd.day())
+            if c_id:
+                eff_rate, adj, main_rate = CustomerRateAdjustmentService.get_effective_rate_for_customer(c_id, t_date)
+            else:
+                main_rate = SettingService.get_main_chicken_rate()
+                eff_rate, adj = main_rate, None
+            self._update_adjustment_banner(eff_rate, adj, main_rate)
+
+    def _update_adjustment_banner(self, eff_rate: Decimal, adj, main_rate: Decimal):
+        if adj:
+            sign = "+" if adj.adjustment_per_kg >= 0 else ""
+            reason_part = f" | Notes: {adj.notes}" if adj.notes else ""
+            if adj.adjustment_per_kg < 0:
+                self.adj_info_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: #f0fdf4;
+                        border: 1.5px solid #86efac;
+                        border-left: 5px solid #16a34a;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                    }
+                """)
+                self.adj_info_label.setStyleSheet("color: #15803d; font-size: 12px; font-weight: 600;")
+                self.adj_info_label.setText(
+                    f"🏷️ <b>Special Party Discount:</b> {sign}{format_currency(adj.adjustment_per_kg)}/KG applied "
+                    f"(Benchmark: {format_currency(main_rate)} ➔ Default Rate: {format_currency(eff_rate)}/KG{reason_part})"
+                )
+            else:
+                self.adj_info_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: #f0f9ff;
+                        border: 1.5px solid #7dd3fc;
+                        border-left: 5px solid #0284c7;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                    }
+                """)
+                self.adj_info_label.setStyleSheet("color: #0369a1; font-size: 12px; font-weight: 600;")
+                self.adj_info_label.setText(
+                    f"🏷️ <b>Party Rate Adjustment:</b> {sign}{format_currency(adj.adjustment_per_kg)}/KG applied "
+                    f"(Benchmark: {format_currency(main_rate)} ➔ Default Rate: {format_currency(eff_rate)}/KG{reason_part})"
+                )
+        else:
+            self.adj_info_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-left: 5px solid #94a3b8;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                }
+            """)
+            self.adj_info_label.setStyleSheet("color: #64748b; font-size: 12px;")
+            self.adj_info_label.setText(
+                f"ℹ️ <b>Standard Benchmark Rate:</b> {format_currency(main_rate)}/KG (No party rate adjustment active for this date)"
+            )
+
+    def _open_rate_adjustments_from_sales(self):
+        c_id = self.customer_combo.currentData()
+        dlg = CustomerRateAdjustmentsDialog(preselected_customer_id=c_id, parent=self)
+        dlg.exec()
+        self.apply_default_rate(force=True)
 
     def on_view_activated(self):
         """Called automatically when navigating to the Sales tab."""
         self.load_combos()
-        # If no gross weight has been typed yet, keep rate synced with latest dashboard rate
+        # If no gross weight has been typed yet, keep rate synced with latest rate
         if self.gross_spin.value() == 0.0:
             self.apply_default_rate(force=True)
         self.refresh_table()
 
     def load_combos(self):
+        self.customer_combo.blockSignals(True)
         self.customer_combo.clear()
         for c in MasterService.get_all_customers():
             self.customer_combo.addItem(c.name, c.id)
+        self.customer_combo.blockSignals(False)
 
         self.item_combo.clear()
         for i in MasterService.get_all_items():
