@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
 from app.services.payment_service import PaymentService
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency
 
 class CustomerPaymentsView(QWidget):
@@ -105,8 +106,9 @@ class CustomerPaymentsView(QWidget):
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(7, QHeaderView.Fixed)
         self.table.setColumnWidth(7, 120)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self._on_mode_changed()
@@ -178,17 +180,17 @@ class CustomerPaymentsView(QWidget):
         for p in payments:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(str(p.id)))
-            self.table.setItem(r, 1, QTableWidgetItem(p.payment_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 2, QTableWidgetItem(p.customer.name if p.customer else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(p.payment_mode))
-            self.table.setItem(r, 4, QTableWidgetItem(p.voucher_number or "-"))
-            self.table.setItem(r, 5, QTableWidgetItem(p.bank_reference or "-"))
-            self.table.setItem(r, 6, QTableWidgetItem(format_currency(p.amount)))
+            self.table.setItem(r, 0, create_table_item(str(p.id), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(p.payment_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 2, create_table_item(p.customer.name if p.customer else "", bold=True))
+            self.table.setItem(r, 3, create_table_item(p.payment_mode, alignment=Qt.AlignCenter))
+            self.table.setItem(r, 4, create_table_item(p.voucher_number or "-"))
+            self.table.setItem(r, 5, create_table_item(p.bank_reference or "-"))
+            self.table.setItem(r, 6, create_table_item(format_currency(p.amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
 
             del_btn = QPushButton("🗑️ Delete")

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate
 from app.services.reconciliation_service import ReconciliationService
 from app.services.inventory_service import InventoryService
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_weight, round_weight, to_decimal
 
 class ReconcileBatchDialog(QDialog):
@@ -195,6 +196,7 @@ class ReconciliationView(QWidget):
 
         # Table
         self.table = QTableWidget(0, 11)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Batch Number", "Purchase Date", "Item", "Opening Stock", "Additions",
             "Sales", "Returns", "Expected Closing", "Actual Measured", "Difference", "Actions"
@@ -202,11 +204,13 @@ class ReconciliationView(QWidget):
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(10, QHeaderView.Fixed)
         self.table.setColumnWidth(10, 130)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.refresh_sheet()
@@ -258,35 +262,29 @@ class ReconciliationView(QWidget):
             self.table.insertRow(r)
 
             b = row["batch"]
-            self.table.setItem(r, 0, QTableWidgetItem(b.batch_number))
-            self.table.setItem(r, 1, QTableWidgetItem(b.purchase_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 2, QTableWidgetItem(b.item.name if b.item else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(format_weight(row["opening_stock"])))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(row["stock_additions"])))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(row["sales"])))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(row["returns"])))
-            self.table.setItem(r, 7, QTableWidgetItem(format_weight(row["calculated_closing"])))
+            self.table.setItem(r, 0, create_table_item(b.batch_number, bold=True))
+            self.table.setItem(r, 1, create_table_item(b.purchase_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 2, create_table_item(b.item.name if b.item else ""))
+            self.table.setItem(r, 3, create_table_item(format_weight(row["opening_stock"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 4, create_table_item(format_weight(row["stock_additions"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 5, create_table_item(format_weight(row["sales"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 6, create_table_item(format_weight(row["returns"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 7, create_table_item(format_weight(row["calculated_closing"]), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
             actual_val = row["actual_closing"]
             diff_val = row["difference"]
 
             if actual_val is not None:
-                self.table.setItem(r, 8, QTableWidgetItem(format_weight(actual_val)))
+                self.table.setItem(r, 8, create_table_item(format_weight(actual_val), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
             else:
-                pending_item = QTableWidgetItem("Awaiting Weighing")
-                pending_item.setForeground(Qt.gray)
-                self.table.setItem(r, 8, pending_item)
+                self.table.setItem(r, 8, create_table_item("Awaiting Weighing", alignment=Qt.AlignCenter, color=Qt.gray))
 
             if diff_val is not None:
                 diff_str = f"+{format_weight(diff_val)}" if diff_val > 0 else format_weight(diff_val)
-                diff_item = QTableWidgetItem(diff_str)
-                if diff_val < 0:
-                    diff_item.setForeground(Qt.darkRed)
-                elif diff_val > 0:
-                    diff_item.setForeground(Qt.darkGreen)
-                self.table.setItem(r, 9, diff_item)
+                diff_col = Qt.darkRed if diff_val < 0 else (Qt.darkGreen if diff_val > 0 else None)
+                self.table.setItem(r, 9, create_table_item(diff_str, alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True, color=diff_col))
             else:
-                self.table.setItem(r, 9, QTableWidgetItem("-"))
+                self.table.setItem(r, 9, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Action button
             action_btn = QPushButton("✏️ Correct" if row["is_reconciled"] else "⚖️ Reconcile")
@@ -296,7 +294,7 @@ class ReconciliationView(QWidget):
 
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
             act_box.addWidget(action_btn)
             self.table.setCellWidget(r, 10, action_widget)

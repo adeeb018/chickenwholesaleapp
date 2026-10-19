@@ -465,16 +465,24 @@ def test_screen_responsiveness_and_table_filling(qapp):
     assert window.width() >= 1200
     assert window.height() >= 700
 
-    # 3. Verify Customer and Provider Statement tables have Stretch resize mode to fill page without gaps
+    from PySide6.QtCore import Qt
+
+    # 3. Verify Customer and Provider Statement tables have horizontal scrollbar policy and ResizeToContents
     cust_table = window.reports_view.cust_stmt_tab.table
     prov_table = window.reports_view.prov_stmt_tab.table
-    assert cust_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.Stretch
-    assert prov_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.Stretch
+    assert cust_table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert prov_table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert cust_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
+    assert prov_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
 
-    # 4. Verify Internal Sales table preserves horizontal scrollable setup with left alignment
+    # 4. Verify all other Reports Hub tables preserve horizontal scrollbar setup
     int_table = window.reports_view.internal_sales_tab.table
-    assert int_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
-    assert int_table.horizontalHeader().stretchLastSection() is False
+    wl_table = window.reports_view.weight_loss_tab.table
+    batch_table = window.reports_view.batch_stock_tab.table
+    ret_table = window.reports_view.returns_tab.table
+    for tbl in (int_table, wl_table, batch_table, ret_table):
+        assert tbl.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+        assert tbl.horizontalHeader().stretchLastSection() is False
 
 def test_weight_loss_report_tab_ui(qapp):
     from app.ui.views.reports_view import WeightLossReportTab

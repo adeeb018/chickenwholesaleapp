@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from app.services.master_service import MasterService
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 
 class ItemDialog(QDialog):
     """
@@ -80,8 +81,9 @@ class ItemsView(QWidget):
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.Fixed)
         self.table.setColumnWidth(4, 120)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.refresh_table()
@@ -93,14 +95,15 @@ class ItemsView(QWidget):
         for i in items:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(str(i.id)))
-            self.table.setItem(r, 1, QTableWidgetItem(i.name))
-            self.table.setItem(r, 2, QTableWidgetItem(i.code or "-"))
-            self.table.setItem(r, 3, QTableWidgetItem("Active" if i.is_active else "Inactive"))
+            self.table.setItem(r, 0, create_table_item(str(i.id), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(i.name, bold=True))
+            self.table.setItem(r, 2, create_table_item(i.code or "-", alignment=Qt.AlignCenter))
+            stat_col = Qt.darkGreen if i.is_active else Qt.gray
+            self.table.setItem(r, 3, create_table_item("Active" if i.is_active else "Inactive", alignment=Qt.AlignCenter, color=stat_col))
 
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
 
             edit_btn = QPushButton("✏️ Edit")

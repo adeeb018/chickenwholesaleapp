@@ -11,6 +11,7 @@ from app.services.sales_service import SalesService
 from app.services.inventory_service import InventoryService
 from app.services.customer_return_service import CustomerReturnService
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, round_money, to_decimal
 
 class CustomerReturnsView(QWidget):
@@ -167,8 +168,9 @@ class CustomerReturnsView(QWidget):
         header.setSectionResizeMode(11, QHeaderView.Stretch)
         header.setSectionResizeMode(12, QHeaderView.Fixed)
         self.table.setColumnWidth(12, 120)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.current_sale_info = None
@@ -350,32 +352,28 @@ class CustomerReturnsView(QWidget):
             for line in cr.lines:
                 r = self.table.rowCount()
                 self.table.insertRow(r)
-                self.table.setItem(r, 0, QTableWidgetItem(cr.return_number))
-                self.table.setItem(r, 1, QTableWidgetItem(cr.return_date.strftime("%d/%m/%Y")))
-                self.table.setItem(r, 2, QTableWidgetItem(cr.customer.name if cr.customer else ""))
-                self.table.setItem(r, 3, QTableWidgetItem(f"Sale #{cr.original_sale_id}"))
-                self.table.setItem(r, 4, QTableWidgetItem(line.batch.batch_number if line.batch else "-"))
-                self.table.setItem(r, 5, QTableWidgetItem(str(getattr(line, "box_count", 0) or 0)))
-                self.table.setItem(r, 6, QTableWidgetItem(format_weight(line.returned_gross_weight_kg)))
-                self.table.setItem(r, 7, QTableWidgetItem(format_weight(line.returned_box_weight_kg)))
-                self.table.setItem(r, 8, QTableWidgetItem(format_weight(line.returned_net_weight_kg)))
+                self.table.setItem(r, 0, create_table_item(cr.return_number, bold=True))
+                self.table.setItem(r, 1, create_table_item(cr.return_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+                self.table.setItem(r, 2, create_table_item(cr.customer.name if cr.customer else ""))
+                self.table.setItem(r, 3, create_table_item(f"Sale #{cr.original_sale_id}", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 4, create_table_item(line.batch.batch_number if line.batch else "-"))
+                self.table.setItem(r, 5, create_table_item(str(getattr(line, "box_count", 0) or 0), alignment=Qt.AlignCenter))
+                self.table.setItem(r, 6, create_table_item(format_weight(line.returned_gross_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 7, create_table_item(format_weight(line.returned_box_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 8, create_table_item(format_weight(line.returned_net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
                 resale_str = "✅ Resellable" if line.resale_eligible else "❌ Unsellable"
-                resale_item = QTableWidgetItem(resale_str)
-                if line.resale_eligible:
-                    resale_item.setForeground(Qt.darkGreen)
-                else:
-                    resale_item.setForeground(Qt.red)
-                self.table.setItem(r, 9, resale_item)
+                resale_col = Qt.darkGreen if line.resale_eligible else Qt.red
+                self.table.setItem(r, 9, create_table_item(resale_str, alignment=Qt.AlignCenter, color=resale_col))
 
-                self.table.setItem(r, 10, QTableWidgetItem(format_currency(line.financial_amount)))
+                self.table.setItem(r, 10, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter))
                 reason_str = f"{line.reason or ''} {f'({cr.notes})' if cr.notes else ''}".strip()
-                self.table.setItem(r, 11, QTableWidgetItem(reason_str or "-"))
+                self.table.setItem(r, 11, create_table_item(reason_str or "-"))
 
                 # Attractive action button
                 action_widget = QWidget()
                 act_box = QHBoxLayout(action_widget)
-                act_box.setContentsMargins(6, 2, 6, 2)
+                act_box.setContentsMargins(6, 0, 6, 0)
                 act_box.setAlignment(Qt.AlignCenter)
 
                 del_btn = QPushButton("🗑️ Delete")

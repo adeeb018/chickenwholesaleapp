@@ -1098,3 +1098,36 @@ def test_24_main_window_navigation(qapp):
     window._switch_view(3)
     assert window.title_label.text() == "Customer Returns"
     assert window.stacked.currentIndex() == 3
+
+def test_25_reconciliation_and_reports_horizontal_scrolling(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHeaderView
+    from app.ui.views.reconciliation_view import ReconciliationView
+    from app.ui.views.reports_view import ReportsView
+    from app.ui.views.batches_view import BatchesView
+
+    # 1. Daily Reconciliation Table: horizontal scrollbar enabled & batch number completely visible
+    recon = ReconciliationView()
+    assert recon.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert recon.table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
+    assert recon.table.horizontalHeader().minimumSectionSize() >= 90
+    assert recon.table.horizontalHeader().stretchLastSection() is False
+
+    # 2. Reports Hub Tables: all 6 tables must be horizontally scrollable
+    rep = ReportsView()
+    tabs = [
+        rep.cust_stmt_tab,
+        rep.prov_stmt_tab,
+        rep.internal_sales_tab,
+        rep.weight_loss_tab,
+        rep.batch_stock_tab,
+        rep.returns_tab,
+    ]
+    for tab in tabs:
+        assert tab.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+        assert tab.table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
+
+    # 3. Batches View Table: horizontal scrollbar enabled
+    batches = BatchesView()
+    assert batches.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+

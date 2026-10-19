@@ -14,6 +14,7 @@ from app.services.inventory_service import InventoryService
 from app.services.customer_return_service import CustomerReturnService
 from app.ui.views.customer_rate_adjustments_dialog import CustomerRateAdjustmentsDialog
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, round_money, to_decimal
 
 class MultiBatchSaleDialog(QDialog):
@@ -60,8 +61,9 @@ class MultiBatchSaleDialog(QDialog):
         self.table.setColumnWidth(6, 130)  # Amount (₹)
         self.table.setColumnWidth(7, 95)   # Action
 
-        self.table.verticalHeader().setDefaultSectionSize(46)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         btn_row = QHBoxLayout()
@@ -134,22 +136,21 @@ class MultiBatchSaleDialog(QDialog):
         self.table.insertRow(r)
 
         batch_combo = QComboBox()
+        batch_combo.setProperty("class", "batchSourceCombo")
         batch_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        batch_combo.setStyleSheet("""
-            QComboBox {
-                font-size: 13px;
-                font-weight: 600;
-                padding: 4px 8px;
-                border: 1px solid #cbd5e1;
-                border-radius: 5px;
-                background-color: #ffffff;
-            }
-        """)
-        for b in self.available_batches:
-            batch_combo.addItem(
-                f"{b.batch_number} (Avail: {format_weight(b.current_stock_kg)})",
-                b.id
+        for i, b in enumerate(self.available_batches):
+            display_txt = f"📦 {b.batch_number}  |  Avail: {format_weight(b.current_stock_kg)}"
+            batch_combo.addItem(display_txt, b.id)
+            batch_combo.setItemData(
+                i,
+                f"Batch: {b.batch_number}\nAvailable Stock: {format_weight(b.current_stock_kg)}\nPurchase Date: {b.purchase_date.strftime('%d/%m/%Y')}",
+                Qt.ToolTipRole
             )
+
+        def _update_combo_tip(cb):
+            cb.setToolTip(cb.currentText())
+        batch_combo.currentIndexChanged.connect(lambda _, cb=batch_combo: _update_combo_tip(cb))
+        _update_combo_tip(batch_combo)
 
         box_count_spin = QSpinBox()
         box_count_spin.setRange(0, 9999)
@@ -245,11 +246,11 @@ class MultiBatchSaleDialog(QDialog):
 
         del_container = QWidget()
         del_layout = QHBoxLayout(del_container)
-        del_layout.setContentsMargins(4, 4, 4, 4)
+        del_layout.setContentsMargins(4, 0, 4, 0)
         del_layout.setAlignment(Qt.AlignCenter)
         del_btn = QPushButton("🗑️ Delete")
         del_btn.setProperty("class", "actionDelete")
-        del_btn.setStyleSheet("font-size: 11px; font-weight: 700; min-height: 26px; padding: 3px 8px; border-radius: 5px;")
+        del_btn.setToolTip("Remove this allocation line")
         del_btn.clicked.connect(self._on_remove_clicked)
         del_layout.addWidget(del_btn)
 
@@ -980,8 +981,9 @@ class SalesView(QWidget):
         header.setSectionResizeMode(11, QHeaderView.Stretch)
         header.setSectionResizeMode(12, QHeaderView.Fixed)
         self.table.setColumnWidth(12, 270)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.load_combos()
@@ -1264,21 +1266,21 @@ class SalesView(QWidget):
         for s in sales:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(str(s.id)))
-            self.table.setItem(r, 1, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 2, QTableWidgetItem(s.customer.name if s.customer else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(s.item.name if s.item else ""))
+            self.table.setItem(r, 0, create_table_item(str(s.id)))
+            self.table.setItem(r, 1, create_table_item(s.transaction_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 2, create_table_item(s.customer.name if s.customer else ""))
+            self.table.setItem(r, 3, create_table_item(s.item.name if s.item else ""))
 
             # Columns: 0:ID, 1:Date, 2:Customer, 3:Item, 4:Boxes, 5:Gross, 6:Box, 7:Net, 8:Rate, 9:Discount, 10:Final Amount, 11:Batch/Allocation, 12:Actions
-            self.table.setItem(r, 4, QTableWidgetItem(str(getattr(s, "box_count", 0) or 0)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.gross_weight_kg)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(s.box_weight_kg)))
-            self.table.setItem(r, 7, QTableWidgetItem(format_weight(s.net_weight_kg)))
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(s.rate_per_kg)))
+            self.table.setItem(r, 4, create_table_item(str(getattr(s, "box_count", 0) or 0), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 5, create_table_item(format_weight(s.gross_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 6, create_table_item(format_weight(s.box_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 7, create_table_item(format_weight(s.net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
+            self.table.setItem(r, 8, create_table_item(format_currency(s.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             disc_val = getattr(s, "discount_amount", Decimal("0.00"))
-            self.table.setItem(r, 9, QTableWidgetItem(format_currency(disc_val)))
-            self.table.setItem(r, 10, QTableWidgetItem(format_currency(s.total_amount)))
+            self.table.setItem(r, 9, create_table_item(format_currency(disc_val), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 10, create_table_item(format_currency(s.total_amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
             # Batch / Allocations column
             if s.allocations:
@@ -1286,25 +1288,26 @@ class SalesView(QWidget):
                     f"{a.batch.batch_number if a.batch else f'Batch #{a.batch_id}'} ({format_weight(a.net_weight_kg)})"
                     for a in s.allocations
                 ])
-                item_batch = QTableWidgetItem(f"🔀 Split ({len(s.allocations)}): {alloc_str}")
-                item_batch.setToolTip("Multi-Batch Allocations:\n" + "\n".join([
-                    f"• {a.batch.batch_number if a.batch else f'Batch #{a.batch_id}'}: Net {format_weight(a.net_weight_kg)}, Boxes: {getattr(a, 'box_count', 0)}"
-                    for a in s.allocations
-                ]))
-                item_batch.setForeground(Qt.darkBlue)
+                item_batch = create_table_item(
+                    f"🔀 Split ({len(s.allocations)}): {alloc_str}",
+                    color=Qt.darkBlue,
+                    tooltip="Multi-Batch Allocations:\n" + "\n".join([
+                        f"• {a.batch.batch_number if a.batch else f'Batch #{a.batch_id}'}: Net {format_weight(a.net_weight_kg)}, Boxes: {getattr(a, 'box_count', 0)}"
+                        for a in s.allocations
+                    ])
+                )
             elif hasattr(s, "batch") and s.batch:
                 alloc_str = s.batch.batch_number
-                item_batch = QTableWidgetItem(alloc_str)
-                item_batch.setToolTip(f"Single Batch: {alloc_str}")
+                item_batch = create_table_item(alloc_str, tooltip=f"Single Batch: {alloc_str}")
             else:
-                item_batch = QTableWidgetItem("-")
+                item_batch = create_table_item("-")
 
             self.table.setItem(r, 11, item_batch)
 
             # Actions column with Return, Edit, and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setContentsMargins(4, 0, 4, 0)
             act_box.setSpacing(6)
             act_box.setAlignment(Qt.AlignCenter)
 

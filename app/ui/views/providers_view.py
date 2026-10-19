@@ -10,6 +10,7 @@ from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
 from app.services.statement_print_service import StatementPrintService
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency
 
 class ProviderDialog(QDialog):
@@ -195,8 +196,9 @@ class ProvidersView(QWidget):
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(5, QHeaderView.Fixed)
         self.table.setColumnWidth(5, 290)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.refresh_table()
@@ -213,21 +215,21 @@ class ProvidersView(QWidget):
         for p in providers:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(str(p.id)))
-            self.table.setItem(r, 1, QTableWidgetItem(p.name))
-            self.table.setItem(r, 2, QTableWidgetItem(p.phone or "-"))
+            self.table.setItem(r, 0, create_table_item(str(p.id), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(p.name, bold=True))
+            self.table.setItem(r, 2, create_table_item(p.phone or "-", alignment=Qt.AlignCenter))
             
             op_amt = p.opening_balance.amount if p.opening_balance else Decimal("0.00")
-            self.table.setItem(r, 3, QTableWidgetItem(format_currency(op_amt)))
+            self.table.setItem(r, 3, create_table_item(format_currency(op_amt), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             stmt = BalanceService.get_provider_statement(p.id, date(2000, 1, 1), today)
             curr_bal = stmt.closing_balance if stmt else Decimal("0.00")
-            self.table.setItem(r, 4, QTableWidgetItem(format_currency(curr_bal)))
+            self.table.setItem(r, 4, create_table_item(format_currency(curr_bal), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
             # Actions cell with View Ledger, Edit, and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setContentsMargins(4, 0, 4, 0)
             act_box.setSpacing(6)
             act_box.setAlignment(Qt.AlignCenter)
 

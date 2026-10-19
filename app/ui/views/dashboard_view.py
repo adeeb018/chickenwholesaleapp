@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from app.ui.components.date_range_picker import DateRangePicker
 from app.ui.components.stat_card import StatCard
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.services.report_service import ReportService
 from app.services.weight_loss_service import WeightLossService
 from app.services.balance_service import BalanceService
@@ -139,8 +140,9 @@ class DashboardView(QWidget):
         self.prov_table = QTableWidget(0, 3)
         self.prov_table.setHorizontalHeaderLabels(["Provider", "Weight (KG)", "Amount"])
         self.prov_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.prov_table.verticalHeader().setDefaultSectionSize(36)
+        self.prov_table.verticalHeader().setDefaultSectionSize(42)
         self.prov_table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.prov_table)
         prov_box.addWidget(self.prov_table)
 
         # Customer Breakdown Frame
@@ -151,8 +153,9 @@ class DashboardView(QWidget):
         self.cust_table = QTableWidget(0, 3)
         self.cust_table.setHorizontalHeaderLabels(["Customer", "Net Weight (KG)", "Amount"])
         self.cust_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.cust_table.verticalHeader().setDefaultSectionSize(36)
+        self.cust_table.verticalHeader().setDefaultSectionSize(42)
         self.cust_table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.cust_table)
         cust_box.addWidget(self.cust_table)
 
         tables_layout.addWidget(prov_frame)
@@ -218,17 +221,17 @@ class DashboardView(QWidget):
         for p_name, data in list(pur_summary["provider_breakdown"].items())[:5]:
             r = self.prov_table.rowCount()
             self.prov_table.insertRow(r)
-            self.prov_table.setItem(r, 0, QTableWidgetItem(p_name))
-            self.prov_table.setItem(r, 1, QTableWidgetItem(format_weight(data["weight_kg"])))
-            self.prov_table.setItem(r, 2, QTableWidgetItem(format_currency(data["amount"])))
+            self.prov_table.setItem(r, 0, create_table_item(p_name, bold=True))
+            self.prov_table.setItem(r, 1, create_table_item(format_weight(data["weight_kg"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.prov_table.setItem(r, 2, create_table_item(format_currency(data["amount"]), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
         self.cust_table.setRowCount(0)
         for c_name, data in list(sales_summary["customer_breakdown"].items())[:5]:
             r = self.cust_table.rowCount()
             self.cust_table.insertRow(r)
-            self.cust_table.setItem(r, 0, QTableWidgetItem(c_name))
-            self.cust_table.setItem(r, 1, QTableWidgetItem(format_weight(data["net_weight_kg"])))
-            self.cust_table.setItem(r, 2, QTableWidgetItem(format_currency(data["amount"])))
+            self.cust_table.setItem(r, 0, create_table_item(c_name, bold=True))
+            self.cust_table.setItem(r, 1, create_table_item(format_weight(data["net_weight_kg"]), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.cust_table.setItem(r, 2, create_table_item(format_currency(data["amount"]), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
     def _save_main_rate(self):
         val = self.main_rate_spin.value()

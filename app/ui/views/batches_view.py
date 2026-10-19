@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from app.services.inventory_service import InventoryService
 from app.services.master_service import MasterService
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_weight, format_currency, to_decimal
 
 class FinishBatchDialog(QDialog):
@@ -123,9 +124,14 @@ class BatchHistoryDialog(QDialog):
 
         # Transactions Table
         self.table = QTableWidget(0, 6)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels(["Date", "Movement Type", "Quantity Change", "Reference", "Reason", "Notes"])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
+        enable_table_copy_and_tooltips(self.table)
 
         running = Decimal("0.000")
         for m in hist.get("movements", []):
@@ -197,6 +203,7 @@ class BatchesView(QWidget):
 
         # Batches Table
         self.table = QTableWidget(0, 8)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Batch Number", "Purchase Date", "Chicken Item", "Purchased Net (KG)",
             "Available Stock (KG)", "Status", "Closure Notes", "Actions"
@@ -204,11 +211,13 @@ class BatchesView(QWidget):
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(95)
         header.setSectionResizeMode(6, QHeaderView.Stretch)
         header.setSectionResizeMode(7, QHeaderView.Fixed)
         self.table.setColumnWidth(7, 220)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self.refresh_table()
@@ -228,34 +237,33 @@ class BatchesView(QWidget):
             r = self.table.rowCount()
             self.table.insertRow(r)
 
-            self.table.setItem(r, 0, QTableWidgetItem(b.batch_number))
-            self.table.setItem(r, 1, QTableWidgetItem(b.purchase_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 2, QTableWidgetItem(b.item.name if b.item else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(format_weight(b.net_weight_kg)))
+            self.table.setItem(r, 0, create_table_item(b.batch_number))
+            self.table.setItem(r, 1, create_table_item(b.purchase_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 2, create_table_item(b.item.name if b.item else ""))
+            self.table.setItem(r, 3, create_table_item(format_weight(b.net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             
-            stock_item = QTableWidgetItem(format_weight(b.current_stock_kg))
-            if b.current_stock_kg > 0:
-                stock_item.setForeground(Qt.darkGreen)
-            else:
-                stock_item.setForeground(Qt.gray)
-            self.table.setItem(r, 4, stock_item)
+            stock_color = Qt.darkGreen if b.current_stock_kg > 0 else Qt.gray
+            self.table.setItem(r, 4, create_table_item(
+                format_weight(b.current_stock_kg),
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                color=stock_color,
+                tooltip=f"Current Stock: {format_weight(b.current_stock_kg)}"
+            ))
 
             # Status badge
-            status_item = QTableWidgetItem(b.status)
-            if b.status == "ACTIVE":
-                status_item.setForeground(Qt.darkGreen)
-            elif b.status == "DEPLETED":
-                status_item.setForeground(Qt.darkYellow)
-            else:
-                status_item.setForeground(Qt.gray)
-            self.table.setItem(r, 5, status_item)
+            stat_color = Qt.darkGreen if b.status == "ACTIVE" else (Qt.darkYellow if b.status == "DEPLETED" else Qt.gray)
+            self.table.setItem(r, 5, create_table_item(
+                b.status,
+                alignment=Qt.AlignCenter,
+                color=stat_color
+            ))
 
-            self.table.setItem(r, 6, QTableWidgetItem(b.closed_notes or ""))
+            self.table.setItem(r, 6, create_table_item(b.closed_notes or ""))
 
             # Action buttons
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(6, 2, 6, 2)
+            action_layout.setContentsMargins(6, 0, 6, 0)
             action_layout.setSpacing(8)
             action_layout.setAlignment(Qt.AlignCenter)
 

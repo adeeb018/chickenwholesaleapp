@@ -173,11 +173,13 @@ QPushButton.actionEdit, QPushButton[class="actionEdit"] {
     background-color: #dcfce7;
     color: #15803d;
     border: 1.5px solid #86efac;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionEdit:hover, QPushButton[class="actionEdit"]:hover {
     background-color: #bbf7d0;
@@ -189,11 +191,13 @@ QPushButton.actionDelete, QPushButton[class="actionDelete"] {
     background-color: #fee2e2;
     color: #b91c1c;
     border: 1.5px solid #fca5a5;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionDelete:hover, QPushButton[class="actionDelete"]:hover {
     background-color: #fecaca;
@@ -205,11 +209,13 @@ QPushButton.actionReturn, QPushButton[class="actionReturn"] {
     background-color: #fef3c7;
     color: #b45309;
     border: 1.5px solid #fcd34d;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionReturn:hover, QPushButton[class="actionReturn"]:hover {
     background-color: #fde68a;
@@ -221,11 +227,13 @@ QPushButton.actionPrimary, QPushButton[class="actionPrimary"] {
     background-color: #dbeafe;
     color: #1d4ed8;
     border: 1.5px solid #93c5fd;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionPrimary:hover, QPushButton[class="actionPrimary"]:hover {
     background-color: #bfdbfe;
@@ -237,11 +245,13 @@ QPushButton.actionDark, QPushButton[class="actionDark"] {
     background-color: #f1f5f9;
     color: #1e293b;
     border: 1.5px solid #cbd5e1;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionDark:hover, QPushButton[class="actionDark"]:hover {
     background-color: #e2e8f0;
@@ -253,16 +263,71 @@ QPushButton.actionFinish, QPushButton[class="actionFinish"] {
     background-color: #f3e8ff;
     color: #7e22ce;
     border: 1.5px solid #d8b4fe;
-    border-radius: 5px;
-    padding: 3px 10px;
+    border-radius: 6px;
+    padding: 2px 10px;
     font-size: 12px;
     font-weight: 700;
-    min-height: 26px;
+    min-height: 24px;
+    max-height: 28px;
+    margin: 0px;
 }
 QPushButton.actionFinish:hover, QPushButton[class="actionFinish"]:hover {
     background-color: #e9d5ff;
     border-color: #c084fc;
     color: #581c87;
+}
+
+/* Multi-Batch Allocation Source Dropdown */
+QComboBox.batchSourceCombo, QComboBox[class="batchSourceCombo"] {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    background-color: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 30px 4px 10px;
+    min-height: 26px;
+}
+QComboBox.batchSourceCombo:hover, QComboBox[class="batchSourceCombo"]:hover {
+    border-color: #2563eb;
+    background-color: #f8fafc;
+}
+QComboBox.batchSourceCombo:focus, QComboBox[class="batchSourceCombo"]:focus {
+    border: 2px solid #2563eb;
+    background-color: #ffffff;
+}
+QComboBox.batchSourceCombo::drop-down, QComboBox[class="batchSourceCombo"]::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 26px;
+    border-left: 1px solid #e2e8f0;
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
+    background-color: #f1f5f9;
+}
+QComboBox.batchSourceCombo::drop-down:hover, QComboBox[class="batchSourceCombo"]::drop-down:hover {
+    background-color: #e2e8f0;
+}
+QComboBox.batchSourceCombo::down-arrow, QComboBox[class="batchSourceCombo"]::down-arrow {
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #334155;
+    width: 0;
+    height: 0;
+}
+QComboBox.batchSourceCombo QAbstractItemView, QComboBox[class="batchSourceCombo"] QAbstractItemView {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1.5px solid #94a3b8;
+    border-radius: 6px;
+    selection-background-color: #2563eb;
+    selection-color: #ffffff;
+    padding: 4px;
+    outline: none;
+}
+QComboBox.batchSourceCombo QAbstractItemView::item, QComboBox[class="batchSourceCombo"] QAbstractItemView::item {
+    min-height: 30px;
+    padding: 6px 12px;
 }
 
 /* Table Widget */
@@ -299,7 +364,7 @@ QHeaderView::section {
 }
 
 QTableWidget::item {
-    padding: 6px 10px;
+    padding: 4px 8px;
     border-bottom: 1px solid #f1f5f9;
 }
 

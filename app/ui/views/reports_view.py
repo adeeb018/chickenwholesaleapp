@@ -16,6 +16,7 @@ from app.services.customer_return_service import CustomerReturnService
 from app.ui.views.batches_view import BatchHistoryDialog
 from app.ui.components.date_range_picker import DateRangePicker
 from app.ui.components.stat_card import StatCard
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, round_money, to_decimal
 
 class CustomerFacingStatementTab(QWidget):
@@ -60,11 +61,18 @@ class CustomerFacingStatementTab(QWidget):
 
         # Customer Statement Table - Strictly HIDES Box Weight!
         self.table = QTableWidget(0, 8)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Net Weight (KG)", "Rate (₹/KG)", "Sale Amount (₹)", "Discount (₹)", "Amount Received (₹)", "Balance (₹)"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(100)
+        header.setStretchLastSection(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table)
 
         self.load_customers()
@@ -121,32 +129,32 @@ class CustomerFacingStatementTab(QWidget):
         # Add Opening Balance Row
         r = self.table.rowCount()
         self.table.insertRow(r)
-        self.table.setItem(r, 0, QTableWidgetItem(start_d.strftime("%d/%m/%Y")))
-        self.table.setItem(r, 1, QTableWidgetItem("OPENING BALANCE"))
-        self.table.setItem(r, 2, QTableWidgetItem("-"))
-        self.table.setItem(r, 3, QTableWidgetItem("-"))
-        self.table.setItem(r, 4, QTableWidgetItem("-"))
-        self.table.setItem(r, 5, QTableWidgetItem("-"))
-        self.table.setItem(r, 6, QTableWidgetItem("-"))
-        self.table.setItem(r, 7, QTableWidgetItem(format_currency(stmt.period_opening_balance)))
+        self.table.setItem(r, 0, create_table_item(start_d.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+        self.table.setItem(r, 1, create_table_item("OPENING BALANCE", bold=True))
+        self.table.setItem(r, 2, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 3, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 6, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 7, create_table_item(format_currency(stmt.period_opening_balance), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
         for entry in stmt.ledger_entries[1:]:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(entry.entry_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 1, QTableWidgetItem(entry.description))
+            self.table.setItem(r, 0, create_table_item(entry.entry_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(entry.description))
             
             # Net Weight
             if entry.net_weight_kg:
-                self.table.setItem(r, 2, QTableWidgetItem(format_weight(entry.net_weight_kg)))
+                self.table.setItem(r, 2, create_table_item(format_weight(entry.net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 2, QTableWidgetItem("-"))
+                self.table.setItem(r, 2, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Rate
             if entry.rate_per_kg:
-                self.table.setItem(r, 3, QTableWidgetItem(format_currency(entry.rate_per_kg)))
+                self.table.setItem(r, 3, create_table_item(format_currency(entry.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 3, QTableWidgetItem("-"))
+                self.table.setItem(r, 3, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Sale Amount (Occurred), Discount, Amount Received
             if entry.transaction_type == "SALE" or entry.debit > 0:
@@ -156,20 +164,20 @@ class CustomerFacingStatementTab(QWidget):
                 else:
                     gross_sale = entry.debit + disc
 
-                self.table.setItem(r, 4, QTableWidgetItem(format_currency(gross_sale)))
-                self.table.setItem(r, 5, QTableWidgetItem(format_currency(disc) if disc > 0 else "-"))
-                self.table.setItem(r, 6, QTableWidgetItem("-"))
+                self.table.setItem(r, 4, create_table_item(format_currency(gross_sale), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 5, create_table_item(format_currency(disc) if disc > 0 else "-", alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 6, create_table_item("-", alignment=Qt.AlignCenter))
             elif entry.transaction_type == "PAYMENT_RECEIVED" or entry.credit > 0:
-                self.table.setItem(r, 4, QTableWidgetItem("-"))
-                self.table.setItem(r, 5, QTableWidgetItem("-"))
-                self.table.setItem(r, 6, QTableWidgetItem(format_currency(entry.credit)))
+                self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 6, create_table_item(format_currency(entry.credit), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 4, QTableWidgetItem("-"))
-                self.table.setItem(r, 5, QTableWidgetItem("-"))
-                self.table.setItem(r, 6, QTableWidgetItem("-"))
+                self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 6, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Running Balance
-            self.table.setItem(r, 7, QTableWidgetItem(format_currency(entry.running_balance)))
+            self.table.setItem(r, 7, create_table_item(format_currency(entry.running_balance), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
     def _on_print(self):
         if not self.current_stmt:
@@ -226,11 +234,18 @@ class ProviderFacingStatementTab(QWidget):
 
         # Provider Statement Table
         self.table = QTableWidget(0, 7)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Date", "Item / Description", "Weight (KG)", "Rate (₹/KG)", "Purchase Amount (₹)", "Amount Paid (₹)", "Balance (₹)"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(100)
+        header.setStretchLastSection(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table)
 
         self.load_providers()
@@ -281,45 +296,45 @@ class ProviderFacingStatementTab(QWidget):
         # Add Opening Balance Row
         r = self.table.rowCount()
         self.table.insertRow(r)
-        self.table.setItem(r, 0, QTableWidgetItem(start_d.strftime("%d/%m/%Y")))
-        self.table.setItem(r, 1, QTableWidgetItem("OPENING BALANCE"))
-        self.table.setItem(r, 2, QTableWidgetItem("-"))
-        self.table.setItem(r, 3, QTableWidgetItem("-"))
-        self.table.setItem(r, 4, QTableWidgetItem("-"))
-        self.table.setItem(r, 5, QTableWidgetItem("-"))
-        self.table.setItem(r, 6, QTableWidgetItem(format_currency(stmt.period_opening_balance)))
+        self.table.setItem(r, 0, create_table_item(start_d.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+        self.table.setItem(r, 1, create_table_item("OPENING BALANCE", bold=True))
+        self.table.setItem(r, 2, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 3, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
+        self.table.setItem(r, 6, create_table_item(format_currency(stmt.period_opening_balance), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
         for entry in stmt.ledger_entries[1:]:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(entry.entry_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 1, QTableWidgetItem(entry.description))
+            self.table.setItem(r, 0, create_table_item(entry.entry_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(entry.description))
             
             # Weight
             if entry.net_weight_kg:
-                self.table.setItem(r, 2, QTableWidgetItem(format_weight(entry.net_weight_kg)))
+                self.table.setItem(r, 2, create_table_item(format_weight(entry.net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 2, QTableWidgetItem("-"))
+                self.table.setItem(r, 2, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Rate
             if entry.rate_per_kg:
-                self.table.setItem(r, 3, QTableWidgetItem(format_currency(entry.rate_per_kg)))
+                self.table.setItem(r, 3, create_table_item(format_currency(entry.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 3, QTableWidgetItem("-"))
+                self.table.setItem(r, 3, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Purchase Amount (Occurred), Amount Paid
             if entry.transaction_type == "PURCHASE" or entry.credit > 0:
-                self.table.setItem(r, 4, QTableWidgetItem(format_currency(entry.credit)))
-                self.table.setItem(r, 5, QTableWidgetItem("-"))
+                self.table.setItem(r, 4, create_table_item(format_currency(entry.credit), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
             elif entry.transaction_type == "PAYMENT_MADE" or entry.debit > 0:
-                self.table.setItem(r, 4, QTableWidgetItem("-"))
-                self.table.setItem(r, 5, QTableWidgetItem(format_currency(entry.debit)))
+                self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 5, create_table_item(format_currency(entry.debit), alignment=Qt.AlignRight | Qt.AlignVCenter))
             else:
-                self.table.setItem(r, 4, QTableWidgetItem("-"))
-                self.table.setItem(r, 5, QTableWidgetItem("-"))
+                self.table.setItem(r, 4, create_table_item("-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 5, create_table_item("-", alignment=Qt.AlignCenter))
 
             # Running Balance
-            self.table.setItem(r, 6, QTableWidgetItem(format_currency(entry.running_balance)))
+            self.table.setItem(r, 6, create_table_item(format_currency(entry.running_balance), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
     def _on_print(self):
         if not self.current_stmt:
@@ -371,10 +386,14 @@ class InternalSalesReportTab(QWidget):
             "Date", "Customer", "Item", "Gross Weight (KG)", "Box Weight (KG)", "Net Weight (KG)", "Boxes", "Avg Wt/Box (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount (₹)"
         ])
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setMinimumSectionSize(85)
-        self.table.horizontalHeader().setStretchLastSection(False)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table)
 
         self.generate_report()
@@ -420,14 +439,14 @@ class InternalSalesReportTab(QWidget):
         for s in summary["records"]:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(s.transaction_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 1, QTableWidgetItem(s.customer.name if s.customer else ""))
-            self.table.setItem(r, 2, QTableWidgetItem(s.item.name if s.item else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(format_weight(s.gross_weight_kg)))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(s.box_weight_kg)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(s.net_weight_kg)))
+            self.table.setItem(r, 0, create_table_item(s.transaction_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(s.customer.name if s.customer else ""))
+            self.table.setItem(r, 2, create_table_item(s.item.name if s.item else ""))
+            self.table.setItem(r, 3, create_table_item(format_weight(s.gross_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 4, create_table_item(format_weight(s.box_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 5, create_table_item(format_weight(s.net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
             boxes = int(getattr(s, "box_count", 0) or 0)
-            self.table.setItem(r, 6, QTableWidgetItem(str(boxes)))
+            self.table.setItem(r, 6, create_table_item(str(boxes), alignment=Qt.AlignCenter))
             
             # Avg Weight per Box = Net Weight / Number of Boxes (for cross verification)
             net_val = to_decimal(s.net_weight_kg)
@@ -436,12 +455,12 @@ class InternalSalesReportTab(QWidget):
                 avg_str = format_weight(avg_val)
             else:
                 avg_str = "-"
-            self.table.setItem(r, 7, QTableWidgetItem(avg_str))
+            self.table.setItem(r, 7, create_table_item(avg_str, alignment=Qt.AlignRight | Qt.AlignVCenter))
 
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(s.rate_per_kg)))
+            self.table.setItem(r, 8, create_table_item(format_currency(s.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
             disc_val = getattr(s, "discount_amount", Decimal("0.00"))
-            self.table.setItem(r, 9, QTableWidgetItem(format_currency(disc_val)))
-            self.table.setItem(r, 10, QTableWidgetItem(format_currency(s.total_amount)))
+            self.table.setItem(r, 9, create_table_item(format_currency(disc_val), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 10, create_table_item(format_currency(s.total_amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
 class WeightLossReportTab(QWidget):
     """
@@ -508,6 +527,7 @@ class WeightLossReportTab(QWidget):
 
         # 3. Batch-Wise Weight Loss Breakdown Table
         self.table = QTableWidget(0, 14)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Batch #", "Date", "Provider", "Item", "Intake Net (KG)",
             "Sold Net (KG)", "Returns (KG)", "In-Stock (KG)", "Recon Loss (KG)",
@@ -516,12 +536,14 @@ class WeightLossReportTab(QWidget):
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(13, QHeaderView.Fixed)
         self.table.setColumnWidth(13, 110)
-        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
     def generate_report(self):
@@ -605,100 +627,91 @@ class WeightLossReportTab(QWidget):
             self.table.insertRow(r)
 
             # 0: Batch #
-            batch_item = QTableWidgetItem(b.batch_number)
-            f_bold = batch_item.font()
-            f_bold.setBold(True)
-            batch_item.setFont(f_bold)
-            self.table.setItem(r, 0, batch_item)
+            self.table.setItem(r, 0, create_table_item(b.batch_number, bold=True))
 
             # 1: Date
-            date_item = QTableWidgetItem(b.purchase_date.strftime("%d/%m/%Y") if b.purchase_date else "-")
-            date_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(r, 1, date_item)
+            self.table.setItem(r, 1, create_table_item(b.purchase_date.strftime("%d/%m/%Y") if b.purchase_date else "-", alignment=Qt.AlignCenter))
 
             # 2: Provider
-            self.table.setItem(r, 2, QTableWidgetItem(b.provider_name or "Direct"))
+            self.table.setItem(r, 2, create_table_item(b.provider_name or "Direct"))
 
             # 3: Item
-            self.table.setItem(r, 3, QTableWidgetItem(b.item_name or "Chicken"))
+            self.table.setItem(r, 3, create_table_item(b.item_name or "Chicken"))
 
             # 4: Intake Net (KG)
-            item_intake = QTableWidgetItem(format_weight(b.intake_net_kg))
-            item_intake.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(r, 4, item_intake)
+            self.table.setItem(r, 4, create_table_item(format_weight(b.intake_net_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             # 5: Sold Net (KG)
-            item_sold = QTableWidgetItem(format_weight(b.sold_net_kg))
-            item_sold.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(r, 5, item_sold)
+            self.table.setItem(r, 5, create_table_item(format_weight(b.sold_net_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             # 6: Returns (KG)
-            item_ret = QTableWidgetItem(format_weight(b.returned_net_kg))
-            item_ret.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(r, 6, item_ret)
+            self.table.setItem(r, 6, create_table_item(format_weight(b.returned_net_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             # 7: In-Stock (KG)
-            item_stock = QTableWidgetItem(format_weight(b.remaining_stock_kg))
-            item_stock.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if b.remaining_stock_kg > 0:
-                item_stock.setFont(f_bold)
-                item_stock.setForeground(QColor("#4338ca"))
-            self.table.setItem(r, 7, item_stock)
+            stock_color = QColor("#4338ca") if b.remaining_stock_kg > 0 else None
+            self.table.setItem(r, 7, create_table_item(
+                format_weight(b.remaining_stock_kg),
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                bold=(b.remaining_stock_kg > 0),
+                color=stock_color
+            ))
 
             # 8: Recon Loss (KG)
-            item_rl = QTableWidgetItem(format_weight(b.reconciled_loss_kg))
-            item_rl.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if b.reconciled_loss_kg > 0:
-                item_rl.setForeground(QColor("#b91c1c"))
-            self.table.setItem(r, 8, item_rl)
+            rl_color = QColor("#b91c1c") if b.reconciled_loss_kg > 0 else None
+            self.table.setItem(r, 8, create_table_item(
+                format_weight(b.reconciled_loss_kg),
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                color=rl_color
+            ))
 
             # 9: Recon Gain (KG)
-            item_rg = QTableWidgetItem(format_weight(b.reconciled_gain_kg))
-            item_rg.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if b.reconciled_gain_kg > 0:
-                item_rg.setForeground(QColor("#15803d"))
-            self.table.setItem(r, 9, item_rg)
+            rg_color = QColor("#15803d") if b.reconciled_gain_kg > 0 else None
+            self.table.setItem(r, 9, create_table_item(
+                format_weight(b.reconciled_gain_kg),
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                color=rg_color
+            ))
 
             # 10: Weight Loss (KG)
             loss_str = format_weight(b.weight_loss_kg)
-            item_loss = QTableWidgetItem(loss_str)
-            item_loss.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            item_loss.setFont(f_bold)
             if b.weight_loss_kg > 0:
-                item_loss.setForeground(QColor("#dc2626"))
+                loss_color = QColor("#dc2626")
             elif b.weight_loss_kg < 0:
-                item_loss.setForeground(QColor("#16a34a"))
+                loss_color = QColor("#16a34a")
             else:
-                item_loss.setForeground(QColor("#64748b"))
-            self.table.setItem(r, 10, item_loss)
+                loss_color = QColor("#64748b")
+            self.table.setItem(r, 10, create_table_item(
+                loss_str,
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                bold=True,
+                color=loss_color
+            ))
 
             # 11: Loss %
             pct_str = f"{b.weight_loss_percentage:.2f}%"
-            item_pct = QTableWidgetItem(pct_str)
-            item_pct.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if b.weight_loss_kg > 0:
-                item_pct.setForeground(QColor("#dc2626"))
-            elif b.weight_loss_kg < 0:
-                item_pct.setForeground(QColor("#16a34a"))
-            else:
-                item_pct.setForeground(QColor("#64748b"))
-            self.table.setItem(r, 11, item_pct)
+            self.table.setItem(r, 11, create_table_item(
+                pct_str,
+                alignment=Qt.AlignRight | Qt.AlignVCenter,
+                color=loss_color
+            ))
 
             # 12: Status
-            status_item = QTableWidgetItem(b.status)
-            status_item.setTextAlignment(Qt.AlignCenter)
             if b.status == "ACTIVE":
-                status_item.setForeground(QColor("#16a34a"))
+                stat_color = QColor("#16a34a")
             elif b.status == "DEPLETED":
-                status_item.setForeground(QColor("#d97706"))
+                stat_color = QColor("#d97706")
             else:
-                status_item.setForeground(QColor("#64748b"))
-            self.table.setItem(r, 12, status_item)
+                stat_color = QColor("#64748b")
+            self.table.setItem(r, 12, create_table_item(
+                b.status,
+                alignment=Qt.AlignCenter,
+                color=stat_color
+            ))
 
             # 13: Actions
             act_widget = QWidget()
             act_box = QHBoxLayout(act_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
 
             hist_btn = QPushButton("📜 History")
@@ -790,6 +803,7 @@ class BatchStockReportTab(QWidget):
         layout.addWidget(self.summary_card)
 
         self.table = QTableWidget(0, 10)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Batch #", "Item", "Status", "Purchased Date", "Purchased (KG)",
             "Sold (KG)", "Returns (KG)", "Loss / Gain (KG)", "Current Stock (KG)", "Actions"
@@ -797,11 +811,13 @@ class BatchStockReportTab(QWidget):
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(9, QHeaderView.Fixed)
         self.table.setColumnWidth(9, 130)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
     def generate_report(self):
@@ -837,40 +853,31 @@ class BatchStockReportTab(QWidget):
 
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(b.batch_number))
-            self.table.setItem(r, 1, QTableWidgetItem(b.item.name if b.item else ""))
+            self.table.setItem(r, 0, create_table_item(b.batch_number, bold=True))
+            self.table.setItem(r, 1, create_table_item(b.item.name if b.item else ""))
 
-            status_item = QTableWidgetItem(b.status)
             if b.status == "ACTIVE":
-                status_item.setForeground(Qt.darkGreen)
+                stat_col = Qt.darkGreen
             elif b.status == "DEPLETED":
-                status_item.setForeground(Qt.darkYellow)
+                stat_col = Qt.darkYellow
             else:
-                status_item.setForeground(Qt.gray)
-            self.table.setItem(r, 2, status_item)
+                stat_col = Qt.gray
+            self.table.setItem(r, 2, create_table_item(b.status, alignment=Qt.AlignCenter, color=stat_col))
 
-            self.table.setItem(r, 3, QTableWidgetItem(b.purchase_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 4, QTableWidgetItem(format_weight(purchased_wt)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(sold_wt)))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(ret_wt)))
+            self.table.setItem(r, 3, create_table_item(b.purchase_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 4, create_table_item(format_weight(purchased_wt), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 5, create_table_item(format_weight(sold_wt), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 6, create_table_item(format_weight(ret_wt), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
             adj_str = f"+{format_weight(adj_wt)}" if adj_wt > 0 else format_weight(adj_wt)
-            adj_item = QTableWidgetItem(adj_str)
-            if adj_wt < 0:
-                adj_item.setForeground(Qt.red)
-            elif adj_wt > 0:
-                adj_item.setForeground(Qt.darkGreen)
-            self.table.setItem(r, 7, adj_item)
+            adj_col = Qt.red if adj_wt < 0 else (Qt.darkGreen if adj_wt > 0 else None)
+            self.table.setItem(r, 7, create_table_item(adj_str, alignment=Qt.AlignRight | Qt.AlignVCenter, color=adj_col))
 
-            stock_item = QTableWidgetItem(format_weight(stock_wt))
-            f = stock_item.font()
-            f.setBold(True)
-            stock_item.setFont(f)
-            self.table.setItem(r, 8, stock_item)
+            self.table.setItem(r, 8, create_table_item(format_weight(stock_wt), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
             act_widget = QWidget()
             act_box = QHBoxLayout(act_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
 
             act_btn = QPushButton("📜 History")
@@ -926,12 +933,19 @@ class CustomerReturnsReportTab(QWidget):
         layout.addWidget(self.summary_card)
 
         self.table = QTableWidget(0, 11)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Return #", "Date", "Customer", "Sale #", "Batch",
             "Gross (KG)", "Box (KG)", "Net (KG)", "Resale?", "Reason", "Credit Amount (₹)"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table)
 
     def load_customers(self):
@@ -969,25 +983,21 @@ class CustomerReturnsReportTab(QWidget):
 
                 r = self.table.rowCount()
                 self.table.insertRow(r)
-                self.table.setItem(r, 0, QTableWidgetItem(cr.return_number))
-                self.table.setItem(r, 1, QTableWidgetItem(cr.return_date.strftime("%d/%m/%Y")))
-                self.table.setItem(r, 2, QTableWidgetItem(cr.customer.name if cr.customer else ""))
-                self.table.setItem(r, 3, QTableWidgetItem(f"#{cr.original_sale_id}" if cr.original_sale_id else "-"))
-                self.table.setItem(r, 4, QTableWidgetItem(line.batch.batch_number if line.batch else "-"))
-                self.table.setItem(r, 5, QTableWidgetItem(format_weight(line.returned_gross_weight_kg)))
-                self.table.setItem(r, 6, QTableWidgetItem(format_weight(line.returned_box_weight_kg)))
-                self.table.setItem(r, 7, QTableWidgetItem(format_weight(line.returned_net_weight_kg)))
+                self.table.setItem(r, 0, create_table_item(cr.return_number, bold=True))
+                self.table.setItem(r, 1, create_table_item(cr.return_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+                self.table.setItem(r, 2, create_table_item(cr.customer.name if cr.customer else ""))
+                self.table.setItem(r, 3, create_table_item(f"#{cr.original_sale_id}" if cr.original_sale_id else "-", alignment=Qt.AlignCenter))
+                self.table.setItem(r, 4, create_table_item(line.batch.batch_number if line.batch else "-"))
+                self.table.setItem(r, 5, create_table_item(format_weight(line.returned_gross_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 6, create_table_item(format_weight(line.returned_box_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 7, create_table_item(format_weight(line.returned_net_weight_kg), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
 
                 resale_str = "✅ Resellable" if line.resale_eligible else "❌ Unsellable"
-                resale_item = QTableWidgetItem(resale_str)
-                if line.resale_eligible:
-                    resale_item.setForeground(Qt.darkGreen)
-                else:
-                    resale_item.setForeground(Qt.red)
-                self.table.setItem(r, 8, resale_item)
+                resale_col = Qt.darkGreen if line.resale_eligible else Qt.red
+                self.table.setItem(r, 8, create_table_item(resale_str, alignment=Qt.AlignCenter, color=resale_col))
 
-                self.table.setItem(r, 9, QTableWidgetItem(line.reason or "-"))
-                self.table.setItem(r, 10, QTableWidgetItem(format_currency(line.financial_amount)))
+                self.table.setItem(r, 9, create_table_item(line.reason or "-"))
+                self.table.setItem(r, 10, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
         self.summary_card.setText(
             f"CUSTOMER RETURNS SUMMARY | Total Records: {len(returns)} | "

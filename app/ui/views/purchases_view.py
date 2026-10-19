@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
 from app.services.purchase_service import PurchaseService
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency, format_weight, to_decimal
 
 class EditPurchaseDialog(QDialog):
@@ -319,8 +320,9 @@ class PurchasesView(QWidget):
         header.setSectionResizeMode(11, QHeaderView.Stretch)
         header.setSectionResizeMode(13, QHeaderView.Fixed)
         self.table.setColumnWidth(13, 190)
-        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         self._on_pay_type_changed()
@@ -427,24 +429,24 @@ class PurchasesView(QWidget):
         for p in purchases:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(str(p.id)))
-            self.table.setItem(r, 1, QTableWidgetItem(p.transaction_date.strftime("%d/%m/%Y")))
-            self.table.setItem(r, 2, QTableWidgetItem(p.provider.name if p.provider else ""))
-            self.table.setItem(r, 3, QTableWidgetItem(p.item.name if p.item else ""))
-            self.table.setItem(r, 4, QTableWidgetItem(str(getattr(p, "box_count", 0) or 0)))
-            self.table.setItem(r, 5, QTableWidgetItem(format_weight(getattr(p, "gross_weight_kg", p.weight_kg))))
-            self.table.setItem(r, 6, QTableWidgetItem(format_weight(getattr(p, "box_weight_kg", Decimal("0.000")))))
-            self.table.setItem(r, 7, QTableWidgetItem(format_weight(getattr(p, "net_weight_kg", p.weight_kg))))
-            self.table.setItem(r, 8, QTableWidgetItem(format_currency(p.rate_per_kg)))
-            self.table.setItem(r, 9, QTableWidgetItem(format_currency(p.total_amount)))
-            self.table.setItem(r, 10, QTableWidgetItem(p.payment_type))
-            self.table.setItem(r, 11, QTableWidgetItem(p.batch.batch_number if p.batch else "-"))
-            self.table.setItem(r, 12, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
+            self.table.setItem(r, 0, create_table_item(str(p.id), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 1, create_table_item(p.transaction_date.strftime("%d/%m/%Y"), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 2, create_table_item(p.provider.name if p.provider else ""))
+            self.table.setItem(r, 3, create_table_item(p.item.name if p.item else ""))
+            self.table.setItem(r, 4, create_table_item(str(getattr(p, "box_count", 0) or 0), alignment=Qt.AlignCenter))
+            self.table.setItem(r, 5, create_table_item(format_weight(getattr(p, "gross_weight_kg", p.weight_kg)), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 6, create_table_item(format_weight(getattr(p, "box_weight_kg", Decimal("0.000"))), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 7, create_table_item(format_weight(getattr(p, "net_weight_kg", p.weight_kg)), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
+            self.table.setItem(r, 8, create_table_item(format_currency(p.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+            self.table.setItem(r, 9, create_table_item(format_currency(p.total_amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
+            self.table.setItem(r, 10, create_table_item(p.payment_type, alignment=Qt.AlignCenter))
+            self.table.setItem(r, 11, create_table_item(p.batch.batch_number if p.batch else "-", bold=True))
+            self.table.setItem(r, 12, create_table_item(p.voucher_number or p.bank_reference or "-"))
 
             # Actions column with Edit and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setContentsMargins(4, 0, 4, 0)
             act_box.setSpacing(6)
             act_box.setAlignment(Qt.AlignCenter)
 

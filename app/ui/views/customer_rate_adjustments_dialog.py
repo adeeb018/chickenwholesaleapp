@@ -13,6 +13,7 @@ from app.services.setting_service import SettingService
 from app.services.customer_rate_adjustment_service import (
     CustomerRateAdjustmentService, DAYS_OF_WEEK_LIST, DAYS_OF_WEEK_FULL
 )
+from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency
 
 class AddRateAdjustmentDialog(QDialog):
@@ -494,8 +495,9 @@ class CustomerRateAdjustmentsDialog(QDialog):
         header.setSectionResizeMode(5, QHeaderView.Stretch)
         header.setSectionResizeMode(7, QHeaderView.Fixed)
         self.table.setColumnWidth(7, 120)
-        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
+        enable_table_copy_and_tooltips(self.table)
         layout.addWidget(self.table, 1)
 
         # Close button
@@ -522,51 +524,50 @@ class CustomerRateAdjustmentsDialog(QDialog):
             self.table.insertRow(r)
 
             # ID
-            self.table.setItem(r, 0, QTableWidgetItem(str(adj.id)))
+            self.table.setItem(r, 0, create_table_item(str(adj.id), alignment=Qt.AlignCenter))
 
             # Customer Name
             c_name = adj.customer.name if adj.customer else f"Customer #{adj.customer_id}"
-            self.table.setItem(r, 1, QTableWidgetItem(c_name))
+            self.table.setItem(r, 1, create_table_item(c_name, bold=True))
 
             # Adjustment (₹/KG)
             sign = "+" if adj.adjustment_per_kg >= 0 else ""
             adj_str = f"{sign}{format_currency(adj.adjustment_per_kg)}/KG"
-            item_adj = QTableWidgetItem(adj_str)
-            item_adj.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            if adj.adjustment_per_kg < 0:
-                item_adj.setForeground(Qt.darkGreen)
-            else:
-                item_adj.setForeground(Qt.darkRed)
-            self.table.setItem(r, 2, item_adj)
+            adj_col = Qt.darkGreen if adj.adjustment_per_kg < 0 else Qt.darkRed
+            self.table.setItem(r, 2, create_table_item(adj_str, alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True, color=adj_col))
 
             # Period
             period_str = f"{adj.start_date.strftime('%d/%m/%Y')}  ➔  {adj.end_date.strftime('%d/%m/%Y')}"
-            self.table.setItem(r, 3, QTableWidgetItem(period_str))
+            self.table.setItem(r, 3, create_table_item(period_str, alignment=Qt.AlignCenter))
 
             # Days of Week
             days_str = adj.days_of_week or "ALL DAYS"
             if days_str == "MON,TUE,WED,THU,FRI,SAT,SUN":
                 days_str = "All 7 Days"
-            self.table.setItem(r, 4, QTableWidgetItem(days_str))
+            self.table.setItem(r, 4, create_table_item(days_str, alignment=Qt.AlignCenter))
 
             # Reason
-            self.table.setItem(r, 5, QTableWidgetItem(adj.notes or "-"))
+            self.table.setItem(r, 5, create_table_item(adj.notes or "-"))
 
             # Status Badge
             if not adj.is_active:
                 status_str = "Inactive"
+                stat_col = Qt.gray
             elif adj.end_date < today:
                 status_str = "Expired"
+                stat_col = Qt.darkRed
             elif adj.start_date > today:
                 status_str = "Scheduled"
+                stat_col = Qt.darkYellow
             else:
                 status_str = "Active Now"
-            self.table.setItem(r, 6, QTableWidgetItem(status_str))
+                stat_col = Qt.darkGreen
+            self.table.setItem(r, 6, create_table_item(status_str, alignment=Qt.AlignCenter, color=stat_col))
 
             # Action: Remove button
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setContentsMargins(6, 0, 6, 0)
             act_box.setAlignment(Qt.AlignCenter)
 
             remove_btn = QPushButton("🗑️ Remove")
