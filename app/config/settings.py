@@ -7,7 +7,7 @@ APP_TITLE = "Chicken Wholesale Shop Management"
 APP_VERSION = "1.0.0"
 
 def get_user_data_dir() -> Path:
-    """
+    r"""
     Returns cross-platform directory for user application data.
     macOS: ~/Library/Application Support/ChickenWholesale
     Windows: %APPDATA%\ChickenWholesale

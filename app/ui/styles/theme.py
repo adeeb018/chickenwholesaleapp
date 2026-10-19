@@ -19,16 +19,17 @@ QWidget {
 /* Sidebar Styling */
 #sidebarWidget {
     background-color: #1e293b;
-    min-width: 220px;
-    max-width: 220px;
+    min-width: 250px;
+    max-width: 250px;
 }
 
 #sidebarHeader {
     color: #ffffff;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
-    padding: 18px 15px;
+    padding: 18px 16px;
     border-bottom: 1px solid #334155;
+    letter-spacing: 0.5px;
 }
 
 #sidebarCategory {

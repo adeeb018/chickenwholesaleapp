@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         # Sidebar Widget
         sidebar = QFrame()
         sidebar.setObjectName("sidebarWidget")
-        sidebar.setFixedWidth(220)
+        sidebar.setFixedWidth(250)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(2)
