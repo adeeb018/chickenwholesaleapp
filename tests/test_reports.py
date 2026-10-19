@@ -299,6 +299,48 @@ def test_statement_print_service_and_buttons(qapp, tmp_path):
     assert prov_dlg.print_btn.text() == "🖨️ Print Statement"
     assert prov_dlg.pdf_btn.text() == "📄 Save PDF"
 
+def test_direct_printer_dialog_configuration(qapp, monkeypatch):
+    from PySide6.QtPrintSupport import QPrintDialog
+    from app.services.statement_print_service import StatementPrintService
+    from app.domain.models import CustomerStatement
+
+    stmt = CustomerStatement(
+        customer_id=1,
+        customer_name="Test Direct Printer",
+        phone=None,
+        address=None,
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 30),
+        period_opening_balance=Decimal("0.00"),
+        total_net_weight_kg=Decimal("10.000"),
+        total_sales_amount=Decimal("1000.00"),
+        total_cash_payments=Decimal("500.00"),
+        total_bank_payments=Decimal("0.00"),
+        total_payments=Decimal("500.00"),
+        closing_balance=Decimal("500.00"),
+        ledger_entries=[]
+    )
+
+    captured_dialog = []
+
+    def mock_exec(self):
+        captured_dialog.append({
+            "title": self.windowTitle(),
+            "options": self.options(),
+            "printer": self.printer()
+        })
+        return QPrintDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(QPrintDialog, "exec", mock_exec)
+
+    StatementPrintService.print_statement(stmt, parent=None, is_provider=False)
+
+    assert len(captured_dialog) == 1
+    d = captured_dialog[0]
+    assert "Test Direct Printer" in d["title"]
+    # Ensure PrintToFile is disabled so it connects directly to physical printers
+    assert not (d["options"] & QPrintDialog.PrintDialogOption.PrintToFile)
+
 def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
     from app.ui.views.reports_view import InternalSalesReportTab
     from app.services.report_service import ReportService

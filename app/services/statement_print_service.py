@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Union, Optional
 from PySide6.QtWidgets import QFileDialog, QMessageBox
-from PySide6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog
+from PySide6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog, QPrinterInfo
 from PySide6.QtGui import QTextDocument, QPageLayout
 from PySide6.QtCore import QMarginsF
 from app.domain.models import CustomerStatement, ProviderStatement
@@ -514,9 +514,43 @@ class StatementPrintService:
     @classmethod
     def print_statement(cls, stmt: Union[CustomerStatement, ProviderStatement], parent=None, is_provider: bool = False):
         """
-        Opens Print Preview Dialog allowing inspection, printer selection, and printing.
+        Connects directly to printers via the system Print Dialog (just like Word or Excel).
+        Allows choosing destination printer, copies, page range, and printing directly.
         """
         html = cls.generate_provider_statement_html(stmt) if is_provider else cls.generate_customer_statement_html(stmt)
+        name = stmt.provider_name if is_provider else stmt.customer_name
+
+        default_printer = QPrinterInfo.defaultPrinter()
+        if not default_printer.isNull():
+            printer = QPrinter(default_printer, QPrinter.HighResolution)
+        else:
+            printer = QPrinter(QPrinter.HighResolution)
+
+        printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout.Millimeter)
+
+        doc = QTextDocument()
+        doc.setHtml(html)
+
+        dialog = QPrintDialog(printer, parent)
+        dialog.setWindowTitle(f"Print Statement — {name}")
+        dialog.setOption(QPrintDialog.PrintToFile, False)
+        dialog.setOption(QPrintDialog.PrintPageRange, True)
+        dialog.setOption(QPrintDialog.PrintCollateCopies, True)
+
+        if dialog.exec() == QPrintDialog.Accepted:
+            try:
+                doc.print_(printer)
+            except Exception as e:
+                if parent:
+                    QMessageBox.critical(parent, "Printing Error", f"Failed to send print job to printer:\n{str(e)}")
+
+    @classmethod
+    def print_preview_statement(cls, stmt: Union[CustomerStatement, ProviderStatement], parent=None, is_provider: bool = False):
+        """
+        Opens a visual Print Preview Dialog for inspecting layout before printing.
+        """
+        html = cls.generate_provider_statement_html(stmt) if is_provider else cls.generate_customer_statement_html(stmt)
+        name = stmt.provider_name if is_provider else stmt.customer_name
 
         printer = QPrinter(QPrinter.HighResolution)
         printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout.Millimeter)
@@ -525,8 +559,7 @@ class StatementPrintService:
         doc.setHtml(html)
 
         dialog = QPrintPreviewDialog(printer, parent)
-        title = f"Print Statement — {stmt.provider_name if is_provider else stmt.customer_name}"
-        dialog.setWindowTitle(title)
+        dialog.setWindowTitle(f"Print Preview — {name}")
         dialog.resize(950, 750)
         dialog.paintRequested.connect(doc.print_)
         dialog.exec()
