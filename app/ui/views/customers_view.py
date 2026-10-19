@@ -198,8 +198,15 @@ class CustomersView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Customer Name", "Phone", "Opening Balance", "Current Outstanding", "Actions"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.Fixed)
+        self.table.setColumnWidth(5, 380)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.refresh_table()
 
@@ -226,27 +233,32 @@ class CustomersView(QWidget):
             curr_bal = stmt.closing_balance if stmt else Decimal("0.00")
             self.table.setItem(r, 4, QTableWidgetItem(format_currency(curr_bal)))
 
-            # Actions cell with View Ledger, Edit, and Delete buttons
+            # Actions cell with View Ledger, Rate Adj, Edit, and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(0, 0, 0, 0)
-            act_box.setSpacing(4)
+            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setSpacing(6)
+            act_box.setAlignment(Qt.AlignCenter)
 
-            ledger_btn = QPushButton("Statement")
-            ledger_btn.setProperty("class", "secondaryBtn")
+            ledger_btn = QPushButton("📄 Statement")
+            ledger_btn.setProperty("class", "actionPrimary")
+            ledger_btn.setToolTip("View full customer ledger and balance statement")
             ledger_btn.clicked.connect(lambda _, cid=c.id: self._view_ledger(cid))
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setProperty("class", "secondaryBtn")
+            rate_adj_btn = QPushButton("📈 Rate Adj.")
+            rate_adj_btn.setProperty("class", "actionDark")
+            rate_adj_btn.setToolTip("Manage customized price adjustments for this customer")
+            rate_adj_btn.clicked.connect(lambda _, cid=c.id: self._open_rate_adjustments(customer_id=cid))
+
+            edit_btn = QPushButton("✏️ Edit")
+            edit_btn.setProperty("class", "actionEdit")
+            edit_btn.setToolTip("Edit customer details")
             edit_btn.clicked.connect(lambda _, cust=c: self._edit_customer(cust))
 
-            delete_btn = QPushButton("Delete")
-            delete_btn.setProperty("class", "dangerBtn")
+            delete_btn = QPushButton("🗑️ Delete")
+            delete_btn.setProperty("class", "actionDelete")
+            delete_btn.setToolTip("Delete this customer record")
             delete_btn.clicked.connect(lambda _, cust=c: self._delete_customer(cust))
-
-            rate_adj_btn = QPushButton("Rate Adj.")
-            rate_adj_btn.setProperty("class", "secondaryBtn")
-            rate_adj_btn.clicked.connect(lambda _, cid=c.id: self._open_rate_adjustments(customer_id=cid))
 
             act_box.addWidget(ledger_btn)
             act_box.addWidget(rate_adj_btn)

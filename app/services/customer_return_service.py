@@ -28,12 +28,14 @@ class CustomerReturnService:
         original_sale_id: int,
         return_date: date,
         lines_data: List[Dict[str, Any]],
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        reopen_if_closed: bool = False
     ) -> CustomerReturn:
         """
         Creates a customer return against an original sale.
         Validates returnable quantities per allocation or sale.
-        Restores sellable stock only if resale_eligible and batch is not CLOSED.
+        Customer can return only if the batch is not closed; if closed,
+        reopening is required before return can be accepted.
         Updates customer financial accounting atomically.
         """
         if not lines_data:
@@ -153,10 +155,33 @@ class CustomerReturnService:
                 if not batch:
                     raise ValueError(f"Batch #{batch_id} not found.")
 
+                if batch.status == "CLOSED":
+                    if not reopen_if_closed:
+                        raise ValueError(
+                            f"Batch '{batch.batch_number}' is CLOSED. "
+                            f"Customer returns cannot be processed for a closed batch unless it is reopened."
+                        )
+                    # Reopen closed batch
+                    batch.status = "ACTIVE"
+                    reopen_mov = InventoryMovement(
+                        batch_id=batch.id,
+                        movement_type="REOPEN_BATCH",
+                        quantity_kg=Decimal("0.000"),
+                        business_date=return_date,
+                        reference_type="CUSTOMER_RETURN",
+                        reason="Reopened to accept customer return",
+                        notes=f"Reopened for Return #{customer_return.return_number}"
+                    )
+                    session.add(reopen_mov)
+                    session.flush()
+
+                box_cnt = int(line.get("box_count", 0) or 0)
+
                 return_line = CustomerReturnLine(
                     customer_return_id=customer_return.id,
                     sale_batch_allocation_id=alloc_id,
                     batch_id=batch_id,
+                    box_count=box_cnt,
                     returned_gross_weight_kg=gross_w if gross_w > 0 else net_w,
                     returned_box_weight_kg=box_w,
                     returned_net_weight_kg=net_w,
@@ -170,27 +195,23 @@ class CustomerReturnService:
                 session.flush()
 
                 # Inventory update:
-                # If resale_eligible is True AND batch is not CLOSED:
-                # restore sellable stock.
-                # If batch is CLOSED: preserve historical reference and closure; do not restore sellable stock without explicit reopening.
+                # If resale_eligible is True, restore sellable stock to the active/reopened batch
                 if resale:
-                    if batch.status != "CLOSED":
-                        # Add positive inventory movement to batch
-                        movement = InventoryMovement(
-                            batch_id=batch.id,
-                            movement_type="CUSTOMER_RETURN",
-                            quantity_kg=net_w,
-                            business_date=return_date,
-                            reference_type="CUSTOMER_RETURN",
-                            reference_id=customer_return.id,
-                            reason=reason or "Customer Return (Resale Eligible)",
-                            notes=line_notes
-                        )
-                        session.add(movement)
-                        batch.current_stock_kg = round_weight(batch.current_stock_kg + net_w)
-                        if batch.status == "DEPLETED" and batch.current_stock_kg > 0:
-                            batch.status = "ACTIVE"
-                        session.flush()
+                    movement = InventoryMovement(
+                        batch_id=batch.id,
+                        movement_type="CUSTOMER_RETURN",
+                        quantity_kg=net_w,
+                        business_date=return_date,
+                        reference_type="CUSTOMER_RETURN",
+                        reference_id=customer_return.id,
+                        reason=reason or "Customer Return (Resale Eligible)",
+                        notes=line_notes
+                    )
+                    session.add(movement)
+                    batch.current_stock_kg = round_weight(batch.current_stock_kg + net_w)
+                    if batch.status == "DEPLETED" and batch.current_stock_kg > 0:
+                        batch.status = "ACTIVE"
+                    session.flush()
 
             customer_return.total_returned_weight_kg = round_weight(total_returned_weight)
             customer_return.financial_credit_amount = round_money(total_credit_amount)
@@ -306,3 +327,40 @@ class CustomerReturnService:
             }
         finally:
             session.close()
+
+    @staticmethod
+    def soft_delete_customer_return(return_id: int) -> bool:
+        """
+        Soft-deletes a customer return, reversing restored inventory stock
+        and removing the financial credit atomically.
+        """
+        with session_scope() as session:
+            cr = session.query(CustomerReturn).filter(CustomerReturn.id == return_id, CustomerReturn.is_deleted == False).first()
+            if not cr:
+                return False
+
+            cr.is_deleted = True
+            cr.deleted_at = datetime.now(timezone.utc)
+
+            for line in cr.lines:
+                line.is_deleted = True
+                line.deleted_at = datetime.now(timezone.utc)
+                if line.resale_eligible and line.batch_id:
+                    batch = session.query(PurchaseBatch).filter(PurchaseBatch.id == line.batch_id).first()
+                    if batch:
+                        rev_mov = InventoryMovement(
+                            batch_id=batch.id,
+                            movement_type="STOCK_ADJUSTMENT",
+                            quantity_kg=-line.returned_net_weight_kg,
+                            business_date=date.today(),
+                            reference_type="RETURN_DELETION",
+                            reference_id=cr.id,
+                            reason="Reversal of deleted customer return",
+                            notes=f"Return #{cr.return_number} deleted"
+                        )
+                        session.add(rev_mov)
+                        batch.current_stock_kg = round_weight(max(Decimal("0.000"), batch.current_stock_kg - line.returned_net_weight_kg))
+                        if batch.current_stock_kg == 0 and batch.status == "ACTIVE":
+                            batch.status = "DEPLETED"
+
+            return True

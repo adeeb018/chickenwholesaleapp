@@ -189,8 +189,15 @@ class ProvidersView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Provider Name", "Phone", "Opening Balance", "Current Payable", "Actions"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.Fixed)
+        self.table.setColumnWidth(5, 290)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.refresh_table()
 
@@ -220,19 +227,23 @@ class ProvidersView(QWidget):
             # Actions cell with View Ledger, Edit, and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(0, 0, 0, 0)
-            act_box.setSpacing(4)
+            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setSpacing(6)
+            act_box.setAlignment(Qt.AlignCenter)
 
-            ledger_btn = QPushButton("Statement")
-            ledger_btn.setProperty("class", "secondaryBtn")
+            ledger_btn = QPushButton("📄 Statement")
+            ledger_btn.setProperty("class", "actionPrimary")
+            ledger_btn.setToolTip("View full provider ledger and balance statement")
             ledger_btn.clicked.connect(lambda _, pid=p.id: self._view_ledger(pid))
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setProperty("class", "secondaryBtn")
+            edit_btn = QPushButton("✏️ Edit")
+            edit_btn.setProperty("class", "actionEdit")
+            edit_btn.setToolTip("Edit provider details")
             edit_btn.clicked.connect(lambda _, prov=p: self._edit_provider(prov))
 
-            delete_btn = QPushButton("Delete")
-            delete_btn.setProperty("class", "dangerBtn")
+            delete_btn = QPushButton("🗑️ Delete")
+            delete_btn.setProperty("class", "actionDelete")
+            delete_btn.setToolTip("Delete this provider record")
             delete_btn.clicked.connect(lambda _, prov=p: self._delete_provider(prov))
 
             act_box.addWidget(ledger_btn)

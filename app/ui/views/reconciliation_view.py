@@ -199,9 +199,15 @@ class ReconciliationView(QWidget):
             "Batch Number", "Purchase Date", "Item", "Opening Stock", "Additions",
             "Sales", "Returns", "Expected Closing", "Actual Measured", "Difference", "Actions"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(10, QHeaderView.Fixed)
+        self.table.setColumnWidth(10, 130)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.refresh_sheet()
 
@@ -241,9 +247,9 @@ class ReconciliationView(QWidget):
         add_metric(0, 1, "RECONCILED", f"{summary['reconciled_batches']} / {summary['total_batches']}", "#15803d")
         add_metric(0, 2, "AWAITING RECONCILIATION", str(summary["pending_batches"]), "#b45309" if summary["pending_batches"] > 0 else "#64748b")
         add_metric(0, 3, "EXPECTED CLOSING", format_weight(summary["total_expected_kg"]), "#0369a1")
-        add_metric(0, 4, "ACTUAL CLOSING", format_weight(summary["total_actual_kg"]), "#0f172a")
-        add_metric(0, 5, "TOTAL STOCK LOSS", format_weight(summary["total_loss_kg"]), "#b91c1c")
-        add_metric(0, 6, "TOTAL STOCK GAIN", format_weight(summary["total_gain_kg"]), "#15803d")
+        add_metric(1, 0, "ACTUAL CLOSING", format_weight(summary["total_actual_kg"]), "#0f172a")
+        add_metric(1, 1, "TOTAL STOCK LOSS", format_weight(summary["total_loss_kg"]), "#b91c1c")
+        add_metric(1, 2, "TOTAL STOCK GAIN", format_weight(summary["total_gain_kg"]), "#15803d")
 
         # Populate table
         self.table.setRowCount(0)
@@ -284,10 +290,16 @@ class ReconciliationView(QWidget):
 
             # Action button
             action_btn = QPushButton("✏️ Correct" if row["is_reconciled"] else "⚖️ Reconcile")
-            action_btn.setProperty("class", "secondaryBtn" if row["is_reconciled"] else "primaryBtn")
-            action_btn.setStyleSheet("padding: 3px 8px; font-size: 11px;")
+            action_btn.setProperty("class", "actionEdit" if row["is_reconciled"] else "actionPrimary")
+            action_btn.setToolTip("Correct previous reconciliation entry" if row["is_reconciled"] else "Perform physical stock count reconciliation")
             action_btn.clicked.connect(lambda _, r_val=row: self._open_reconcile_dialog(r_val))
-            self.table.setCellWidget(r, 10, action_btn)
+
+            action_widget = QWidget()
+            act_box = QHBoxLayout(action_widget)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
+            act_box.addWidget(action_btn)
+            self.table.setCellWidget(r, 10, action_widget)
 
     def _open_reconcile_dialog(self, batch_val):
         b_date = self.get_selected_date()

@@ -118,7 +118,8 @@ class PurchaseRepository:
             gross_weight_kg=gross,
             box_weight_kg=box,
             box_count=box_cnt,
-            batch_number=batch_number
+            batch_number=batch_number,
+            provider_name=purchase.provider.name if purchase.provider else None
         )
 
         self.session.commit()

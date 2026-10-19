@@ -242,17 +242,19 @@ class PurchasesView(QWidget):
         self.notes_edit.setPlaceholderText("Notes/Remarks")
 
         self.batch_name_edit = QLineEdit()
-        self.batch_name_edit.setPlaceholderText("Auto (e.g. Batch A, Batch B...)")
+        self.batch_name_edit.setPlaceholderText("Auto: Provider-DDMonYYYY-A")
 
         save_btn = QPushButton("Save Purchase")
         save_btn.setProperty("class", "primaryBtn")
         save_btn.clicked.connect(self._save_purchase)
 
-        # Live calculation
+        # Live calculation & dynamic batch placeholder
         self.gross_spin.valueChanged.connect(self._calculate_net_and_amount)
         self.box_spin.valueChanged.connect(self._calculate_net_and_amount)
         self.rate_spin.valueChanged.connect(self._calculate_net_and_amount)
         self.pay_type_combo.currentIndexChanged.connect(self._on_pay_type_changed)
+        self.provider_combo.currentIndexChanged.connect(self._update_batch_placeholder)
+        self.date_edit.dateChanged.connect(self._update_batch_placeholder)
 
         form_layout.addWidget(QLabel("Date:", self), 0, 0)
         form_layout.addWidget(self.date_edit, 0, 1)
@@ -310,9 +312,16 @@ class PurchasesView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Batch #", "Voucher / Ref", "Actions"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setSectionResizeMode(13, QHeaderView.Fixed)
+        self.table.setColumnWidth(13, 190)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self._on_pay_type_changed()
         self.load_combos()
@@ -432,18 +441,33 @@ class PurchasesView(QWidget):
             self.table.setItem(r, 11, QTableWidgetItem(p.batch.batch_number if p.batch else "-"))
             self.table.setItem(r, 12, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
 
-            # Actions column with Edit button
+            # Actions column with Edit and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(0, 0, 0, 0)
-            act_box.setSpacing(4)
+            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setSpacing(6)
+            act_box.setAlignment(Qt.AlignCenter)
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setProperty("class", "secondaryBtn")
+            edit_btn = QPushButton("✏️ Edit")
+            edit_btn.setProperty("class", "actionEdit")
+            edit_btn.setToolTip("Edit purchase quantities, rate, or notes")
             edit_btn.clicked.connect(lambda _, pur_obj=p: self._edit_purchase(pur_obj))
-
             act_box.addWidget(edit_btn)
+
+            del_btn = QPushButton("🗑️ Delete")
+            del_btn.setProperty("class", "actionDelete")
+            del_btn.setToolTip("Delete this purchase transaction")
+            del_btn.clicked.connect(lambda _, pur_id=p.id: self._delete_purchase_by_id(pur_id))
+            act_box.addWidget(del_btn)
+
             self.table.setCellWidget(r, 13, action_widget)
+
+    def _update_batch_placeholder(self):
+        prov_name = self.provider_combo.currentText()
+        clean_p = "".join(c for c in prov_name if c.isalnum()) or "Provider"
+        qd = self.date_edit.date()
+        dt_str = qd.toString("ddMMMyyyy")
+        self.batch_name_edit.setPlaceholderText(f"Auto: {clean_p}-{dt_str}-A")
 
     def _edit_purchase(self, purchase):
         dlg = EditPurchaseDialog(purchase=purchase, parent=self)
@@ -456,6 +480,20 @@ class PurchasesView(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to update purchase: {str(e)}")
 
+    def _delete_purchase_by_id(self, pur_id: int):
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Are you sure you want to delete purchase record #{pur_id}?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            try:
+                PurchaseService.soft_delete_purchase(pur_id)
+                QMessageBox.information(self, "Success", f"Purchase #{pur_id} deleted successfully.")
+                self.refresh_table()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete purchase: {str(e)}")
+
     def _delete_selected(self):
         row = self.table.currentRow()
         if row < 0:
@@ -463,11 +501,4 @@ class PurchasesView(QWidget):
             return
 
         pur_id = int(self.table.item(row, 0).text())
-        reply = QMessageBox.question(
-            self, "Confirm Delete",
-            f"Are you sure you want to delete purchase record #{pur_id}?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            PurchaseService.soft_delete_purchase(pur_id)
-            self.refresh_table()
+        self._delete_purchase_by_id(pur_id)

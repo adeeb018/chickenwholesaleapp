@@ -4,7 +4,8 @@ from typing import Optional, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QComboBox,
     QDoubleSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QCheckBox, QGroupBox, QButtonGroup, QListWidget, QListWidgetItem
+    QHeaderView, QMessageBox, QCheckBox, QGroupBox, QButtonGroup, QListWidget, QListWidgetItem,
+    QWidget
 )
 from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
@@ -486,11 +487,16 @@ class CustomerRateAdjustmentsDialog(QDialog):
         self.table.setHorizontalHeaderLabels([
             "ID", "Customer / Party", "Adjustment (₹/KG)", "Period (From - To)", "Days of Week", "Notes / Reason", "Status", "Action"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        self.table.setColumnWidth(7, 120)
+        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         # Close button
         bottom_bar = QHBoxLayout()
@@ -558,11 +564,17 @@ class CustomerRateAdjustmentsDialog(QDialog):
             self.table.setItem(r, 6, QTableWidgetItem(status_str))
 
             # Action: Remove button
-            remove_btn = QPushButton("Remove")
-            remove_btn.setProperty("class", "dangerBtn")
-            remove_btn.setStyleSheet("padding: 3px 8px; font-size: 11px;")
+            action_widget = QWidget()
+            act_box = QHBoxLayout(action_widget)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
+
+            remove_btn = QPushButton("🗑️ Remove")
+            remove_btn.setProperty("class", "actionDelete")
+            remove_btn.setToolTip("Remove rate adjustment for this customer")
             remove_btn.clicked.connect(lambda _, aid=adj.id, name=c_name: self._on_delete_adjustment(aid, name))
-            self.table.setCellWidget(r, 7, remove_btn)
+            act_box.addWidget(remove_btn)
+            self.table.setCellWidget(r, 7, action_widget)
 
     def _on_add_adjustment(self):
         c_id = self.customer_filter_combo.currentData()

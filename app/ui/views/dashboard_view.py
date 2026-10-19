@@ -139,6 +139,8 @@ class DashboardView(QWidget):
         self.prov_table = QTableWidget(0, 3)
         self.prov_table.setHorizontalHeaderLabels(["Provider", "Weight (KG)", "Amount"])
         self.prov_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.prov_table.verticalHeader().setDefaultSectionSize(36)
+        self.prov_table.verticalHeader().setVisible(False)
         prov_box.addWidget(self.prov_table)
 
         # Customer Breakdown Frame
@@ -149,12 +151,14 @@ class DashboardView(QWidget):
         self.cust_table = QTableWidget(0, 3)
         self.cust_table.setHorizontalHeaderLabels(["Customer", "Net Weight (KG)", "Amount"])
         self.cust_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.cust_table.verticalHeader().setDefaultSectionSize(36)
+        self.cust_table.verticalHeader().setVisible(False)
         cust_box.addWidget(self.cust_table)
 
         tables_layout.addWidget(prov_frame)
         tables_layout.addWidget(cust_frame)
 
-        layout.addLayout(tables_layout)
+        layout.addLayout(tables_layout, 1)
 
         # Initial refresh
         self.refresh_data()

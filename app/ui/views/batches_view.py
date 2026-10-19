@@ -201,9 +201,15 @@ class BatchesView(QWidget):
             "Batch Number", "Purchase Date", "Chicken Item", "Purchased Net (KG)",
             "Available Stock (KG)", "Status", "Closure Notes", "Actions"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        self.table.setColumnWidth(7, 220)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.refresh_table()
 
@@ -249,25 +255,26 @@ class BatchesView(QWidget):
             # Action buttons
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(2, 2, 2, 2)
-            action_layout.setSpacing(4)
+            action_layout.setContentsMargins(6, 2, 6, 2)
+            action_layout.setSpacing(8)
+            action_layout.setAlignment(Qt.AlignCenter)
 
             hist_btn = QPushButton("📜 History")
-            hist_btn.setProperty("class", "secondaryBtn")
-            hist_btn.setStyleSheet("padding: 3px 6px; font-size: 11px;")
+            hist_btn.setProperty("class", "actionDark")
+            hist_btn.setToolTip("View full movement history and audit trail for this batch")
             hist_btn.clicked.connect(lambda _, bid=b.id: self._open_history(bid))
             action_layout.addWidget(hist_btn)
 
             if b.status != "CLOSED":
                 finish_btn = QPushButton("🏁 Finish")
-                finish_btn.setProperty("class", "primaryBtn")
-                finish_btn.setStyleSheet("padding: 3px 6px; font-size: 11px;")
+                finish_btn.setProperty("class", "actionFinish")
+                finish_btn.setToolTip("Mark this batch as completely finished/closed")
                 finish_btn.clicked.connect(lambda _, batch_obj=b: self._open_finish_batch(batch_obj))
                 action_layout.addWidget(finish_btn)
             else:
-                reopen_btn = QPushButton("🔄 Reopen")
-                reopen_btn.setProperty("class", "secondaryBtn")
-                reopen_btn.setStyleSheet("padding: 3px 6px; font-size: 11px;")
+                reopen_btn = QPushButton("🔓 Reopen")
+                reopen_btn.setProperty("class", "actionReturn")
+                reopen_btn.setToolTip("Reopen this closed batch")
                 reopen_btn.clicked.connect(lambda _, bid=b.id: self._reopen_batch(bid))
                 action_layout.addWidget(reopen_btn)
 

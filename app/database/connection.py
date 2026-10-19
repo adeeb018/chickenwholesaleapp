@@ -43,6 +43,12 @@ def _migrate_schema(engine):
                 # Backfill gross_weight_kg and net_weight_kg for legacy purchases
                 conn.exec_driver_sql("UPDATE purchases SET gross_weight_kg = weight_kg, net_weight_kg = weight_kg WHERE gross_weight_kg = 0.000 AND weight_kg > 0;")
             
+            # Customer return lines migrations
+            ret_res = conn.exec_driver_sql("PRAGMA table_info(customer_return_lines);")
+            ret_cols = [row[1] for row in ret_res.fetchall()]
+            if ret_cols and "box_count" not in ret_cols:
+                conn.exec_driver_sql("ALTER TABLE customer_return_lines ADD COLUMN box_count INTEGER NOT NULL DEFAULT 0;")
+            
             # Backfill legacy purchases into purchase_batches and inventory_movements
             # Check if purchase_batches table exists
             table_check = conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table' AND name='purchase_batches';").fetchone()
@@ -141,6 +147,8 @@ def session_scope() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
+
+get_db = session_scope
 
 def seed_default_items():
     """Seeds initial chicken types if none exist."""

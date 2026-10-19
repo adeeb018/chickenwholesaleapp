@@ -95,12 +95,19 @@ class ProviderPaymentsView(QWidget):
 
         layout.addLayout(filter_layout)
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Date", "Provider", "Mode", "Voucher #", "Bank Ref", "Amount"
+            "ID", "Date", "Provider", "Mode", "Voucher #", "Bank Ref", "Amount", "Actions"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(7, QHeaderView.Fixed)
+        self.table.setColumnWidth(7, 120)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self._on_mode_changed()
         self.load_combos()
@@ -179,13 +186,20 @@ class ProviderPaymentsView(QWidget):
             self.table.setItem(r, 5, QTableWidgetItem(p.bank_reference or "-"))
             self.table.setItem(r, 6, QTableWidgetItem(format_currency(p.amount)))
 
-    def _delete_selected(self):
-        row = self.table.currentRow()
-        if row < 0:
-            QMessageBox.warning(self, "Selection Required", "Please select a row to delete.")
-            return
+            action_widget = QWidget()
+            act_box = QHBoxLayout(action_widget)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
 
-        p_id = int(self.table.item(row, 0).text())
+            del_btn = QPushButton("🗑️ Delete")
+            del_btn.setProperty("class", "actionDelete")
+            del_btn.setToolTip("Delete this provider payment")
+            del_btn.clicked.connect(lambda _, pid=p.id: self._delete_payment_by_id(pid))
+            act_box.addWidget(del_btn)
+
+            self.table.setCellWidget(r, 7, action_widget)
+
+    def _delete_payment_by_id(self, p_id: int):
         reply = QMessageBox.question(
             self, "Confirm Delete",
             f"Are you sure you want to delete provider payment #{p_id}?",
@@ -194,3 +208,12 @@ class ProviderPaymentsView(QWidget):
         if reply == QMessageBox.Yes:
             PaymentService.soft_delete_provider_payment(p_id)
             self.refresh_table()
+
+    def _delete_selected(self):
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Selection Required", "Please select a row to delete.")
+            return
+
+        p_id = int(self.table.item(row, 0).text())
+        self._delete_payment_by_id(p_id)

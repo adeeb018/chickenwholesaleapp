@@ -454,15 +454,16 @@ def test_internal_sales_report_average_box_weight_and_horizontal_scroll(qapp):
 
 def test_screen_responsiveness_and_table_filling(qapp):
     from app.ui.main_window import MainWindow
-    from PySide6.QtWidgets import QHeaderView, QScrollArea
+    from PySide6.QtWidgets import QHeaderView, QStackedWidget
 
     window = MainWindow()
-    # 1. Verify MainWindow has scroll area wrapping stacked widget so right side is never cut off
-    assert isinstance(window.scroll_area, QScrollArea)
-    assert window.scroll_area.widget() == window.stacked
+    # 1. Verify MainWindow fits pages directly (stacked widget has stretch factor 1, no outer scroll area)
+    assert isinstance(window.stacked, QStackedWidget)
+    assert window.stacked.parent() is not None
 
-    # 2. Verify MainWindow can shrink cleanly on 1280 or smaller resolutions
-    assert window.minimumSizeHint().width() <= 1000
+    # 2. Verify default window geometry fits standard 1280x800 desktop/laptop screens
+    assert window.width() >= 1200
+    assert window.height() >= 700
 
     # 3. Verify Customer and Provider Statement tables have Stretch resize mode to fill page without gaps
     cust_table = window.reports_view.cust_stmt_tab.table

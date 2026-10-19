@@ -142,8 +142,8 @@ class MultiBatchSaleDialog(QDialog):
         amt_lbl.setAlignment(Qt.AlignCenter)
         amt_lbl.setStyleSheet("font-weight: bold; color: #15803d;")
 
-        del_btn = QPushButton("✕")
-        del_btn.setStyleSheet("color: #ef4444; font-weight: bold;")
+        del_btn = QPushButton("🗑️")
+        del_btn.setProperty("class", "actionDelete")
         del_btn.clicked.connect(lambda _, row_idx=r: self._remove_row(row_idx))
 
         # Auto-calc connections
@@ -470,17 +470,38 @@ class QuickSaleReturnDialog(QDialog):
             "notes": self.notes_edit.text().strip() or None
         }]
 
+        # Check closed batch requirement
+        reopen_needed = False
+        target_batch_id = alloc_data["batch_id"] if alloc_data else None
+        if target_batch_id:
+            b = InventoryService.get_batch_by_id(target_batch_id)
+            if b and b.status == "CLOSED":
+                reply = QMessageBox.question(
+                    self,
+                    "Batch is Closed - Reopen Batch?",
+                    f"Target batch '{b.batch_number}' is currently CLOSED.\n\n"
+                    "Customer returns can only be accepted if the batch is reopened.\n\n"
+                    "Would you like to reopen this closed batch now and proceed with the return?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if reply != QMessageBox.Yes:
+                    return
+                reopen_needed = True
+
         try:
             cr = CustomerReturnService.create_customer_return(
                 customer_id=self.sale.customer_id,
                 original_sale_id=self.sale.id,
                 return_date=ret_date,
                 lines_data=lines_data,
-                notes=self.notes_edit.text().strip() or None
+                notes=self.notes_edit.text().strip() or None,
+                reopen_if_closed=reopen_needed
             )
+            reopen_msg = "\n(Batch was successfully reopened to receive return stock.)" if reopen_needed else ""
             QMessageBox.information(
                 self, "Success",
-                f"Customer Return #{cr.return_number} recorded successfully!\n"
+                f"Customer Return #{cr.return_number} recorded successfully!{reopen_msg}\n"
                 f"Customer credit of {format_currency(cr.total_credit_amount)} posted."
             )
             self.accept()
@@ -653,7 +674,12 @@ class SalesView(QWidget):
         self.date_edit.setDisplayFormat("dd/MM/yyyy")
 
         self.customer_combo = QComboBox()
+        self.customer_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.customer_combo.setMinimumContentsLength(10)
+
         self.item_combo = QComboBox()
+        self.item_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.item_combo.setMinimumContentsLength(10)
 
         # Batch Selection & Multi-Batch Split Button
         batch_container = QWidget()
@@ -662,6 +688,8 @@ class SalesView(QWidget):
         batch_box.setSpacing(6)
 
         self.batch_combo = QComboBox()
+        self.batch_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.batch_combo.setMinimumContentsLength(16)
         self.batch_combo.currentIndexChanged.connect(self._on_batch_changed)
         batch_box.addWidget(self.batch_combo, 1)
 
@@ -823,11 +851,16 @@ class SalesView(QWidget):
             "ID", "Date", "Customer", "Item", "Boxes", "Gross (KG)", "Box (KG)",
             "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Batch / Allocation", "Actions"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(11, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(12, QHeaderView.ResizeToContents)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setSectionResizeMode(12, QHeaderView.Fixed)
+        self.table.setColumnWidth(12, 270)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.load_combos()
         self.apply_default_rate(force=True)
@@ -1137,23 +1170,30 @@ class SalesView(QWidget):
 
             self.table.setItem(r, 11, QTableWidgetItem(alloc_str))
 
-            # Actions column with Edit / Discount and Return button
+            # Actions column with Return, Edit, and Delete buttons
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(0, 0, 0, 0)
-            act_box.setSpacing(4)
+            act_box.setContentsMargins(4, 2, 4, 2)
+            act_box.setSpacing(6)
+            act_box.setAlignment(Qt.AlignCenter)
 
             ret_btn = QPushButton("🔁 Return")
-            ret_btn.setProperty("class", "secondaryBtn")
-            ret_btn.setStyleSheet("padding: 3px 6px; font-size: 11px; color: #b45309;")
+            ret_btn.setProperty("class", "actionReturn")
+            ret_btn.setToolTip("Record customer return against this sale")
             ret_btn.clicked.connect(lambda _, sale_id=s.id: self._open_sale_return(sale_id))
             act_box.addWidget(ret_btn)
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setProperty("class", "secondaryBtn")
-            edit_btn.setStyleSheet("padding: 3px 6px; font-size: 11px;")
+            edit_btn = QPushButton("✏️ Edit")
+            edit_btn.setProperty("class", "actionEdit")
+            edit_btn.setToolTip("Edit rate, weights, or discount")
             edit_btn.clicked.connect(lambda _, sale_obj=s: self._edit_sale(sale_obj))
             act_box.addWidget(edit_btn)
+
+            del_btn = QPushButton("🗑️ Delete")
+            del_btn.setProperty("class", "actionDelete")
+            del_btn.setToolTip("Delete this sale record")
+            del_btn.clicked.connect(lambda _, sale_id=s.id: self._delete_sale_by_id(sale_id))
+            act_box.addWidget(del_btn)
 
             self.table.setCellWidget(r, 12, action_widget)
 
@@ -1174,6 +1214,21 @@ class SalesView(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to update sale: {str(e)}")
 
+    def _delete_sale_by_id(self, sale_id: int):
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Are you sure you want to delete sale record #{sale_id}?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            try:
+                SalesService.soft_delete_sale(sale_id)
+                self._load_batches()
+                self.refresh_table()
+                QMessageBox.information(self, "Success", f"Sale #{sale_id} deleted successfully.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete sale: {str(e)}")
+
     def _delete_selected(self):
         row = self.table.currentRow()
         if row < 0:
@@ -1181,12 +1236,4 @@ class SalesView(QWidget):
             return
 
         sale_id = int(self.table.item(row, 0).text())
-        reply = QMessageBox.question(
-            self, "Confirm Delete",
-            f"Are you sure you want to delete sale record #{sale_id}?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            SalesService.soft_delete_sale(sale_id)
-            self._load_batches()
-            self.refresh_table()
+        self._delete_sale_by_id(sale_id)

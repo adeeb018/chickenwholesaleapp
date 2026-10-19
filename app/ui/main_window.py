@@ -147,14 +147,7 @@ class MainWindow(QMainWindow):
         self.stacked.addWidget(self.reports_view)            # 11
         self.stacked.addWidget(self.settings_view)           # 12
 
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-        self.scroll_area.setWidget(self.stacked)
-
-        right_layout.addWidget(self.scroll_area)
+        right_layout.addWidget(self.stacked, 1)
         main_layout.addWidget(right_panel, 1)
 
         self._switch_view(0)

@@ -11,27 +11,53 @@ from app.utils.decimal_utils import round_weight, to_decimal, format_weight
 
 class InventoryService:
     @staticmethod
-    def get_next_batch_name(session: Session, purchase_date: Optional[date] = None) -> str:
+    def get_next_batch_name(
+        session: Session,
+        provider_name: Optional[str] = None,
+        purchase_date: Optional[date] = None
+    ) -> str:
         """
-        Generates human-readable batch numbers like 'Batch A', 'Batch B', 'Batch C', etc.
-        Ensures uniqueness across all batches.
+        Generates human-readable, unique batch names reflecting provider and buying date:
+        Format: (providerName-DateofBuying-Character) e.g. 'Suguna-19Oct2026-A', 'Venkateshwara-19Oct2026-B'.
         """
-        existing = session.query(PurchaseBatch.batch_number).all()
+        import re
+        p_date = purchase_date or date.today()
+        date_str = p_date.strftime("%d%b%Y")
+
+        if provider_name:
+            words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in provider_name.strip().split()]
+            words = [w for w in words if w]
+            if words:
+                if len(words[0]) <= 2 and len(words) > 1:
+                    clean_provider = f"{words[0]}{words[1]}"[:12]
+                else:
+                    clean_provider = words[0][:15]
+            else:
+                clean_provider = "Batch"
+        else:
+            clean_provider = "Batch"
+
+        prefix = f"{clean_provider}-{date_str}"
+
+        # Fetch existing batch numbers matching this prefix
+        existing = session.query(PurchaseBatch.batch_number).filter(
+            PurchaseBatch.batch_number.like(f"{prefix}-%")
+        ).all()
         existing_names = {r[0] for r in existing}
 
+        # Suffix characters: A to Z, then A1, B1...
         for i in range(26):
-            candidate = f"Batch {chr(65 + i)}"
+            candidate = f"{prefix}-{chr(65 + i)}"
             if candidate not in existing_names:
                 return candidate
 
-        # If A-Z are used, try Batch A1, B1, C1...
         for num in range(1, 1000):
             for i in range(26):
-                candidate = f"Batch {chr(65 + i)}{num}"
+                candidate = f"{prefix}-{chr(65 + i)}{num}"
                 if candidate not in existing_names:
                     return candidate
 
-        return f"Batch-{int(datetime.now(timezone.utc).timestamp())}"
+        return f"{prefix}-{int(datetime.now(timezone.utc).timestamp())}"
 
     @staticmethod
     def create_batch(
@@ -42,7 +68,8 @@ class InventoryService:
         gross_weight_kg: any,
         box_weight_kg: any = 0.000,
         box_count: int = 0,
-        batch_number: Optional[str] = None
+        batch_number: Optional[str] = None,
+        provider_name: Optional[str] = None
     ) -> PurchaseBatch:
         gross = round_weight(gross_weight_kg)
         box = round_weight(box_weight_kg)
@@ -60,7 +87,12 @@ class InventoryService:
             raise ValueError("Net weight must be greater than 0.")
 
         if not batch_number or not batch_number.strip():
-            b_name = InventoryService.get_next_batch_name(session, purchase_date)
+            prov_name = provider_name
+            if not prov_name and purchase_id:
+                pur = session.query(Purchase).filter(Purchase.id == purchase_id).first()
+                if pur and pur.provider:
+                    prov_name = pur.provider.name
+            b_name = InventoryService.get_next_batch_name(session, provider_name=prov_name, purchase_date=purchase_date)
         else:
             b_name = batch_number.strip()
             # Verify uniqueness

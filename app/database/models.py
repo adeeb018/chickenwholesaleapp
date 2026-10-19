@@ -300,6 +300,7 @@ class CustomerReturnLine(Base, TimestampMixin, SoftDeleteMixin):
     customer_return_id = Column(Integer, ForeignKey("customer_returns.id", ondelete="CASCADE"), nullable=False, index=True)
     sale_batch_allocation_id = Column(Integer, ForeignKey("sale_batch_allocations.id"), nullable=True, index=True)
     batch_id = Column(Integer, ForeignKey("purchase_batches.id"), nullable=False, index=True)
+    box_count = Column(Integer, nullable=False, default=0)
     returned_gross_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
     returned_box_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
     returned_net_weight_kg = Column(Numeric(12, 3), nullable=False)

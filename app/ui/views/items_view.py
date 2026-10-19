@@ -74,8 +74,15 @@ class ItemsView(QWidget):
         self.table.setHorizontalHeaderLabels([
             "ID", "Name", "Code", "Status", "Actions"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        self.table.setColumnWidth(4, 120)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         self.refresh_table()
 
@@ -93,11 +100,12 @@ class ItemsView(QWidget):
 
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(0, 0, 0, 0)
-            act_box.setSpacing(4)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
 
-            edit_btn = QPushButton("Edit")
-            edit_btn.setProperty("class", "secondaryBtn")
+            edit_btn = QPushButton("✏️ Edit")
+            edit_btn.setProperty("class", "actionEdit")
+            edit_btn.setToolTip("Edit chicken type name or code")
             edit_btn.clicked.connect(lambda _, item=i: self._edit_item(item))
 
             act_box.addWidget(edit_btn)

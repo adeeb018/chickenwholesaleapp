@@ -167,6 +167,103 @@ QPushButton.dangerBtn:hover {
     background-color: #dc2626;
 }
 
+/* Modern High-Visibility Action Buttons for Table Cells */
+QPushButton.actionEdit, QPushButton[class="actionEdit"] {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1.5px solid #86efac;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionEdit:hover, QPushButton[class="actionEdit"]:hover {
+    background-color: #bbf7d0;
+    border-color: #4ade80;
+    color: #14532d;
+}
+
+QPushButton.actionDelete, QPushButton[class="actionDelete"] {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1.5px solid #fca5a5;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionDelete:hover, QPushButton[class="actionDelete"]:hover {
+    background-color: #fecaca;
+    border-color: #f87171;
+    color: #7f1d1d;
+}
+
+QPushButton.actionReturn, QPushButton[class="actionReturn"] {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1.5px solid #fcd34d;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionReturn:hover, QPushButton[class="actionReturn"]:hover {
+    background-color: #fde68a;
+    border-color: #f59e0b;
+    color: #78350f;
+}
+
+QPushButton.actionPrimary, QPushButton[class="actionPrimary"] {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border: 1.5px solid #93c5fd;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionPrimary:hover, QPushButton[class="actionPrimary"]:hover {
+    background-color: #bfdbfe;
+    border-color: #60a5fa;
+    color: #1e3a8a;
+}
+
+QPushButton.actionDark, QPushButton[class="actionDark"] {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionDark:hover, QPushButton[class="actionDark"]:hover {
+    background-color: #e2e8f0;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+QPushButton.actionFinish, QPushButton[class="actionFinish"] {
+    background-color: #f3e8ff;
+    color: #7e22ce;
+    border: 1.5px solid #d8b4fe;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 26px;
+}
+QPushButton.actionFinish:hover, QPushButton[class="actionFinish"]:hover {
+    background-color: #e9d5ff;
+    border-color: #c084fc;
+    color: #581c87;
+}
+
 /* Table Widget */
 QTableWidget, QTableView {
     background-color: #ffffff;

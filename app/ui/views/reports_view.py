@@ -28,6 +28,8 @@ class CustomerFacingStatementTab(QWidget):
 
         filter_layout = QHBoxLayout()
         self.customer_combo = QComboBox()
+        self.customer_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.customer_combo.setMinimumContentsLength(12)
         self.date_picker = DateRangePicker()
         self.date_picker.date_range_changed.connect(self.generate_report)
         self.customer_combo.currentIndexChanged.connect(self.generate_report)
@@ -50,6 +52,7 @@ class CustomerFacingStatementTab(QWidget):
         layout.addLayout(filter_layout)
 
         self.summary_card = QLabel()
+        self.summary_card.setWordWrap(True)
         self.summary_card.setStyleSheet("font-size: 14px; font-weight: bold; background-color: #f0fdf4; padding: 12px; border-radius: 6px; border: 1px solid #bbf7d0;")
         layout.addWidget(self.summary_card)
 
@@ -191,6 +194,8 @@ class ProviderFacingStatementTab(QWidget):
 
         filter_layout = QHBoxLayout()
         self.provider_combo = QComboBox()
+        self.provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.provider_combo.setMinimumContentsLength(12)
         self.date_picker = DateRangePicker()
         self.date_picker.date_range_changed.connect(self.generate_report)
         self.provider_combo.currentIndexChanged.connect(self.generate_report)
@@ -213,6 +218,7 @@ class ProviderFacingStatementTab(QWidget):
         layout.addLayout(filter_layout)
 
         self.summary_card = QLabel()
+        self.summary_card.setWordWrap(True)
         self.summary_card.setStyleSheet("font-size: 14px; font-weight: bold; background-color: #eff6ff; padding: 12px; border-radius: 6px; border: 1px solid #bfdbfe;")
         layout.addWidget(self.summary_card)
 
@@ -523,11 +529,15 @@ class BatchStockReportTab(QWidget):
             "Batch #", "Item", "Status", "Purchased Date", "Purchased (KG)",
             "Sold (KG)", "Returns (KG)", "Loss / Gain (KG)", "Current Stock (KG)", "Actions"
         ])
-        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(9, QHeaderView.ResizeToContents)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.Fixed)
+        self.table.setColumnWidth(9, 130)
+        self.table.verticalHeader().setDefaultSectionSize(42)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
     def generate_report(self):
         start_d, end_d = self.date_picker.get_date_range()
@@ -593,11 +603,17 @@ class BatchStockReportTab(QWidget):
             stock_item.setFont(f)
             self.table.setItem(r, 8, stock_item)
 
+            act_widget = QWidget()
+            act_box = QHBoxLayout(act_widget)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
+
             act_btn = QPushButton("📜 History")
-            act_btn.setProperty("class", "secondaryBtn")
-            act_btn.setStyleSheet("padding: 2px 6px; font-size: 11px;")
+            act_btn.setProperty("class", "actionDark")
+            act_btn.setToolTip("View full movement history and audit trail for this batch")
             act_btn.clicked.connect(lambda _, b_id=b.id: self._show_history(b_id))
-            self.table.setCellWidget(r, 9, act_btn)
+            act_box.addWidget(act_btn)
+            self.table.setCellWidget(r, 9, act_widget)
 
         self.summary_card.setText(
             f"BATCH INVENTORY SUMMARY | Total Batches: {len(batches)} | "

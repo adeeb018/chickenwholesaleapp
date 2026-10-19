@@ -748,7 +748,21 @@ def test_17_closed_batch_return():
     closed_batch = InventoryService.get_batch_by_id(pur.batch.id)
     assert closed_batch.status == "CLOSED"
 
-    # Customer returns 2 kg
+    # Attempting to return into a closed batch without reopening must fail
+    with pytest.raises(ValueError, match="is CLOSED"):
+        CustomerReturnService.create_customer_return(
+            customer_id=customer.id,
+            original_sale_id=sale.id,
+            return_date=d,
+            lines_data=[{
+                "sale_batch_allocation_id": sale.allocations[0].id,
+                "returned_gross_weight_kg": 2,
+                "resale_eligible": True
+            }],
+            reopen_if_closed=False
+        )
+
+    # Returning with reopen_if_closed=True reopens batch and restores stock
     ret = CustomerReturnService.create_customer_return(
         customer_id=customer.id,
         original_sale_id=sale.id,
@@ -757,31 +771,14 @@ def test_17_closed_batch_return():
             "sale_batch_allocation_id": sale.allocations[0].id,
             "returned_gross_weight_kg": 2,
             "resale_eligible": True
-        }]
+        }],
+        reopen_if_closed=True
     )
 
-    # Return is recorded, original batch reference is preserved, but status remains CLOSED and stock not silently restored without reopening
     batch_after = InventoryService.get_batch_by_id(pur.batch.id)
-    assert batch_after.status == "CLOSED"
-    assert batch_after.current_stock_kg == Decimal("0.000")
+    assert batch_after.status == "ACTIVE"
+    assert batch_after.current_stock_kg == Decimal("2.000")
     assert ret.total_returned_weight_kg == Decimal("2.000")
-
-    # Reopening the batch explicitly with audit reason
-    reopened = InventoryService.reopen_batch(pur.batch.id, reason="Customer returned 2 kg good chicken")
-    assert reopened.status == "DEPLETED"
-    # User can now adjust stock or record return restoration
-    from app.database.connection import session_scope, get_session
-    with session_scope() as session:
-        InventoryService.record_movement(
-            session=session,
-            batch_id=pur.batch.id,
-            movement_type="STOCK_ADJUSTMENT",
-            quantity_kg=2,
-            business_date=d,
-            reason="Restoring stock from return after batch reopening"
-        )
-    assert InventoryService.get_batch_by_id(pur.batch.id).current_stock_kg == Decimal("2.000")
-    assert InventoryService.get_batch_by_id(pur.batch.id).status == "ACTIVE"
 
 def test_18_reconciliation_correction():
     provider = MasterService.create_provider(name="Provider A")
