@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -69,6 +69,24 @@ class ProviderStatement:
     ledger_entries: List[LedgerEntry]
 
 @dataclass
+class BatchWeightLossItem:
+    batch_id: int
+    batch_number: str
+    purchase_date: date
+    item_name: str
+    provider_name: str
+    intake_net_kg: Decimal
+    sold_net_kg: Decimal
+    returned_net_kg: Decimal
+    remaining_stock_kg: Decimal
+    reconciled_loss_kg: Decimal
+    reconciled_gain_kg: Decimal
+    weight_loss_kg: Decimal
+    weight_loss_percentage: Decimal
+    status: str
+    notes: Optional[str] = None
+
+@dataclass
 class WeightLossSummary:
     start_date: date
     end_date: date
@@ -78,3 +96,8 @@ class WeightLossSummary:
     total_sales_net_kg: Decimal
     weight_loss_kg: Decimal
     weight_loss_percentage: Decimal
+    total_remaining_stock_kg: Decimal = Decimal("0.000")
+    total_returns_net_kg: Decimal = Decimal("0.000")
+    total_reconciled_loss_kg: Decimal = Decimal("0.000")
+    total_reconciled_gain_kg: Decimal = Decimal("0.000")
+    batch_details: List[BatchWeightLossItem] = field(default_factory=list)

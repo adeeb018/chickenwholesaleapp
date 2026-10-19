@@ -194,9 +194,10 @@ class DashboardView(QWidget):
 
         # 4. Weight Loss
         wl_summary = WeightLossService.get_weight_loss_summary(start_d, end_d)
+        loss_pct_str = f"{wl_summary.weight_loss_percentage:.2f}%"
         self.card_weight_loss.set_data(
-            value=f"{format_weight(wl_summary.weight_loss_kg)}",
-            subtitle=f"Loss: {wl_summary.weight_loss_percentage:.2f}% (Pur: {format_weight(wl_summary.total_purchased_kg)})"
+            value=f"{format_weight(wl_summary.weight_loss_kg)} ({loss_pct_str})",
+            subtitle=f"In-Stock: {format_weight(wl_summary.total_remaining_stock_kg)} | Pur: {format_weight(wl_summary.total_purchased_kg)}"
         )
 
         # 5. Receivables & Payables

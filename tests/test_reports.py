@@ -476,3 +476,89 @@ def test_screen_responsiveness_and_table_filling(qapp):
     assert int_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
     assert int_table.horizontalHeader().stretchLastSection() is False
 
+def test_weight_loss_report_tab_ui(qapp):
+    from app.ui.views.reports_view import WeightLossReportTab
+    from app.services.inventory_service import InventoryService
+    from app.services.reconciliation_service import ReconciliationService
+
+    # 1. Setup test data
+    prov = MasterService.create_provider(name="WL UI Provider")
+    cust = MasterService.create_customer(name="WL UI Customer")
+    item = MasterService.get_all_items()[0]
+
+    # Purchase 500 KG into batch
+    pur = PurchaseService.create_purchase(
+        transaction_date=date(2026, 9, 25),
+        provider_id=prov.id,
+        item_id=item.id,
+        weight_kg=500,
+        rate_per_kg=150,
+        payment_type="BANK",
+        batch_number="BATCH-WL-UI-01"
+    )
+
+    batches = InventoryService.get_batches()
+    b = next(x for x in batches if x.batch_number == "BATCH-WL-UI-01")
+
+    # Sale 400 KG
+    sale = SalesService.create_sale(
+        transaction_date=date(2026, 9, 25),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=400,
+        box_weight_kg=0,
+        rate_per_kg=180,
+        batch_id=b.id
+    )
+
+    # Reconcile: physical count is 95 KG (5 KG loss out of 100 remaining)
+    recon = ReconciliationService.reconcile_batch(
+        batch_id=b.id,
+        business_date=date(2026, 9, 25),
+        actual_closing_stock=Decimal("95.000"),
+        reason="Test shrinkage"
+    )
+
+    # 2. Instantiate WeightLossReportTab
+    tab = WeightLossReportTab()
+    tab.date_picker.set_date_range(date(2026, 9, 25), date(2026, 9, 25))
+    tab.generate_report()
+
+    # 3. Verify KPI cards
+    assert tab.card_intake.val_label.text() == "500.000 KG"
+    assert tab.card_sales.val_label.text() == "400.000 KG"
+    assert tab.card_stock.val_label.text() == "95.000 KG"
+    assert tab.card_loss.val_label.text() == "5.000 KG"
+    assert "1.00%" in tab.card_loss.sub_label.text()
+
+    # 4. Verify Table
+    assert tab.table.columnCount() == 14
+    # At least 1 batch row + 1 totals row = 2 rows
+    assert tab.table.rowCount() >= 2
+
+    # Find the row for BATCH-WL-UI-01
+    found_row = None
+    for r in range(tab.table.rowCount()):
+        item_cell = tab.table.item(r, 0)
+        if item_cell and item_cell.text() == "BATCH-WL-UI-01":
+            found_row = r
+            break
+    assert found_row is not None
+
+    assert tab.table.item(found_row, 2).text() == "WL UI Provider"
+    assert tab.table.item(found_row, 4).text() == "500.000 KG"
+    assert tab.table.item(found_row, 5).text() == "400.000 KG"
+    assert tab.table.item(found_row, 7).text() == "95.000 KG"
+    assert tab.table.item(found_row, 8).text() == "5.000 KG"  # Recon loss
+    assert tab.table.item(found_row, 10).text() == "5.000 KG" # Net loss
+    assert tab.table.item(found_row, 11).text() == "1.00%"    # Loss %
+    assert tab.table.item(found_row, 12).text() == "ACTIVE"
+
+    # 5. Test search filter
+    tab.search_input.setText("BATCH-WL-UI-01")
+    assert tab.table.rowCount() == 2 # 1 matching batch + 1 totals row
+    tab.search_input.setText("NON_EXISTENT_QUERY_XYZ")
+    assert tab.table.rowCount() == 0
+    tab.search_input.clear()
+    assert tab.table.rowCount() >= 2
+

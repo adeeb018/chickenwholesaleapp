@@ -2,8 +2,9 @@ from datetime import date
 from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QComboBox, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox
+    QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QMessageBox, QLineEdit, QGridLayout
 )
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
@@ -14,6 +15,7 @@ from app.services.inventory_service import InventoryService
 from app.services.customer_return_service import CustomerReturnService
 from app.ui.views.batches_view import BatchHistoryDialog
 from app.ui.components.date_range_picker import DateRangePicker
+from app.ui.components.stat_card import StatCard
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, round_money, to_decimal
 
 class CustomerFacingStatementTab(QWidget):
@@ -444,55 +446,318 @@ class InternalSalesReportTab(QWidget):
 class WeightLossReportTab(QWidget):
     """
     Weight Loss Analysis Report Tab.
-    Computes Purchased Weight vs Sold Net Weight and calculates Loss KG and Loss %.
+    Computes Batch-wise & Period-wide Weight Loss, accounting for:
+    - Purchased Net Intake
+    - Sold Net Weight
+    - Customer Returns restocked
+    - Remaining unsold stock currently in crates/inventory
+    - Physical daily stock reconciliation discrepancies (shrinkage vs overage)
+    - Batch completion/closure zeroing adjustments
     """
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_summary = None
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
-        top_layout = QHBoxLayout()
+        # 1. Top Filters Row
+        filter_layout = QHBoxLayout()
         self.date_picker = DateRangePicker()
         self.date_picker.date_range_changed.connect(self.generate_report)
-        top_layout.addWidget(self.date_picker)
-        top_layout.addStretch()
-        layout.addLayout(top_layout)
+        filter_layout.addWidget(self.date_picker)
 
-        self.card = QLabel()
-        self.card.setStyleSheet("font-size: 15px; font-weight: bold; background-color: #fef2f2; padding: 15px; border-radius: 8px; border: 1px solid #fecaca;")
-        layout.addWidget(self.card)
+        filter_layout.addWidget(QLabel("Status:"))
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["ALL", "ACTIVE", "DEPLETED", "CLOSED"])
+        self.status_combo.currentIndexChanged.connect(self._apply_filters)
+        filter_layout.addWidget(self.status_combo)
 
-        self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Metric / Parameter", "Value"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table)
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Filter by Batch #, Provider, Item...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.textChanged.connect(self._apply_filters)
+        filter_layout.addWidget(self.search_input)
+
+        filter_layout.addStretch()
+
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.setProperty("class", "secondaryBtn")
+        self.refresh_btn.clicked.connect(self.generate_report)
+        filter_layout.addWidget(self.refresh_btn)
+
+        layout.addLayout(filter_layout)
+
+        # 2. KPI Summary Cards Grid (2 rows x 3 columns)
+        cards_grid = QGridLayout()
+        cards_grid.setSpacing(10)
+        self.card_intake = StatCard("Total Intake (Purchased)", accent_color="#2563eb")
+        self.card_sales = StatCard("Total Sold Net", accent_color="#059669")
+        self.card_returns = StatCard("Customer Returns", accent_color="#d97706")
+        self.card_stock = StatCard("Unsold In-Stock", accent_color="#7c3aed")
+        self.card_recon = StatCard("Reconciliation Discrepancy", accent_color="#0891b2")
+        self.card_loss = StatCard("Net Weight Loss", accent_color="#dc2626")
+
+        cards_grid.addWidget(self.card_intake, 0, 0)
+        cards_grid.addWidget(self.card_sales, 0, 1)
+        cards_grid.addWidget(self.card_returns, 0, 2)
+        cards_grid.addWidget(self.card_stock, 1, 0)
+        cards_grid.addWidget(self.card_recon, 1, 1)
+        cards_grid.addWidget(self.card_loss, 1, 2)
+        layout.addLayout(cards_grid)
+
+        # 3. Batch-Wise Weight Loss Breakdown Table
+        self.table = QTableWidget(0, 14)
+        self.table.setHorizontalHeaderLabels([
+            "Batch #", "Date", "Provider", "Item", "Intake Net (KG)",
+            "Sold Net (KG)", "Returns (KG)", "In-Stock (KG)", "Recon Loss (KG)",
+            "Recon Gain (KG)", "Net Loss (KG)", "Loss %", "Status", "Actions"
+        ])
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(13, QHeaderView.Fixed)
+        self.table.setColumnWidth(13, 110)
+        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setAlternatingRowColors(True)
+        layout.addWidget(self.table, 1)
 
     def generate_report(self):
         start_d, end_d = self.date_picker.get_date_range()
-        wl = WeightLossService.get_weight_loss_summary(start_d, end_d)
+        self.current_summary = WeightLossService.get_weight_loss_summary(start_d, end_d)
+        wl = self.current_summary
 
-        self.card.setText(
-            f"WEIGHT LOSS ANALYSIS REPORT\n"
-            f"Period: {start_d.strftime('%d/%m/%Y')} to {end_d.strftime('%d/%m/%Y')}\n\n"
-            f"Purchased Weight: {format_weight(wl.total_purchased_kg)}\n"
-            f"Sold Net Weight: {format_weight(wl.total_sales_net_kg)}\n"
-            f"WEIGHT LOSS: {format_weight(wl.weight_loss_kg)} ({wl.weight_loss_percentage:.2f}%)"
+        # Update KPI Cards
+        self.card_intake.set_data(
+            value=format_weight(wl.total_purchased_kg),
+            subtitle="Gross intake minus provider crates"
+        )
+        self.card_sales.set_data(
+            value=format_weight(wl.total_sales_net_kg),
+            subtitle=f"Gross: {format_weight(wl.total_sales_gross_kg)} | Box: {format_weight(wl.total_sales_box_kg)}"
+        )
+        self.card_returns.set_data(
+            value=format_weight(wl.total_returns_net_kg),
+            subtitle="Restocked from customer returns"
+        )
+        self.card_stock.set_data(
+            value=format_weight(wl.total_remaining_stock_kg),
+            subtitle="Unsold chicken sitting in active batches"
         )
 
-        metrics = [
-            ("Total Purchased Weight (KG)", format_weight(wl.total_purchased_kg)),
-            ("Total Sales Gross Weight (KG)", format_weight(wl.total_sales_gross_kg)),
-            ("Total Sales Box Weight (KG)", format_weight(wl.total_sales_box_kg)),
-            ("Total Sales Net Weight (KG)", format_weight(wl.total_sales_net_kg)),
-            ("Actual Chicken Weight Loss (KG)", format_weight(wl.weight_loss_kg)),
-            ("Weight Loss Percentage (%)", f"{wl.weight_loss_percentage:.2f} %")
-        ]
+        recon_net = wl.total_reconciled_gain_kg - wl.total_reconciled_loss_kg
+        recon_sub = f"Loss: {format_weight(wl.total_reconciled_loss_kg)} | Gain: {format_weight(wl.total_reconciled_gain_kg)}"
+        recon_str = f"+{format_weight(recon_net)}" if recon_net > 0 else format_weight(recon_net)
+        self.card_recon.set_data(
+            value=recon_str,
+            subtitle=recon_sub
+        )
 
+        self.card_loss.set_data(
+            value=f"{format_weight(wl.weight_loss_kg)}",
+            subtitle=f"Loss Rate: {wl.weight_loss_percentage:.2f}% of intake"
+        )
+
+        self._apply_filters()
+
+    def _apply_filters(self):
+        if not self.current_summary:
+            return
+
+        status_filter = self.status_combo.currentText()
+        search_query = self.search_input.text().strip().lower()
+
+        filtered_batches = []
+        for b in (self.current_summary.batch_details or []):
+            if status_filter != "ALL" and b.status != status_filter:
+                continue
+            if search_query:
+                combined = f"{b.batch_number} {b.provider_name} {b.item_name} {b.status}".lower()
+                if search_query not in combined:
+                    continue
+            filtered_batches.append(b)
+
+        self._populate_table(filtered_batches)
+
+    def _populate_table(self, batches):
         self.table.setRowCount(0)
-        for m, v in metrics:
+
+        tot_intake = Decimal("0.000")
+        tot_sold = Decimal("0.000")
+        tot_returns = Decimal("0.000")
+        tot_stock = Decimal("0.000")
+        tot_recon_loss = Decimal("0.000")
+        tot_recon_gain = Decimal("0.000")
+        tot_loss = Decimal("0.000")
+
+        for b in batches:
+            tot_intake += b.intake_net_kg
+            tot_sold += b.sold_net_kg
+            tot_returns += b.returned_net_kg
+            tot_stock += b.remaining_stock_kg
+            tot_recon_loss += b.reconciled_loss_kg
+            tot_recon_gain += b.reconciled_gain_kg
+            tot_loss += b.weight_loss_kg
+
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(m))
-            self.table.setItem(r, 1, QTableWidgetItem(v))
+
+            # 0: Batch #
+            batch_item = QTableWidgetItem(b.batch_number)
+            f_bold = batch_item.font()
+            f_bold.setBold(True)
+            batch_item.setFont(f_bold)
+            self.table.setItem(r, 0, batch_item)
+
+            # 1: Date
+            date_item = QTableWidgetItem(b.purchase_date.strftime("%d/%m/%Y") if b.purchase_date else "-")
+            date_item.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(r, 1, date_item)
+
+            # 2: Provider
+            self.table.setItem(r, 2, QTableWidgetItem(b.provider_name or "Direct"))
+
+            # 3: Item
+            self.table.setItem(r, 3, QTableWidgetItem(b.item_name or "Chicken"))
+
+            # 4: Intake Net (KG)
+            item_intake = QTableWidgetItem(format_weight(b.intake_net_kg))
+            item_intake.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(r, 4, item_intake)
+
+            # 5: Sold Net (KG)
+            item_sold = QTableWidgetItem(format_weight(b.sold_net_kg))
+            item_sold.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(r, 5, item_sold)
+
+            # 6: Returns (KG)
+            item_ret = QTableWidgetItem(format_weight(b.returned_net_kg))
+            item_ret.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.table.setItem(r, 6, item_ret)
+
+            # 7: In-Stock (KG)
+            item_stock = QTableWidgetItem(format_weight(b.remaining_stock_kg))
+            item_stock.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if b.remaining_stock_kg > 0:
+                item_stock.setFont(f_bold)
+                item_stock.setForeground(QColor("#4338ca"))
+            self.table.setItem(r, 7, item_stock)
+
+            # 8: Recon Loss (KG)
+            item_rl = QTableWidgetItem(format_weight(b.reconciled_loss_kg))
+            item_rl.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if b.reconciled_loss_kg > 0:
+                item_rl.setForeground(QColor("#b91c1c"))
+            self.table.setItem(r, 8, item_rl)
+
+            # 9: Recon Gain (KG)
+            item_rg = QTableWidgetItem(format_weight(b.reconciled_gain_kg))
+            item_rg.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if b.reconciled_gain_kg > 0:
+                item_rg.setForeground(QColor("#15803d"))
+            self.table.setItem(r, 9, item_rg)
+
+            # 10: Weight Loss (KG)
+            loss_str = format_weight(b.weight_loss_kg)
+            item_loss = QTableWidgetItem(loss_str)
+            item_loss.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            item_loss.setFont(f_bold)
+            if b.weight_loss_kg > 0:
+                item_loss.setForeground(QColor("#dc2626"))
+            elif b.weight_loss_kg < 0:
+                item_loss.setForeground(QColor("#16a34a"))
+            else:
+                item_loss.setForeground(QColor("#64748b"))
+            self.table.setItem(r, 10, item_loss)
+
+            # 11: Loss %
+            pct_str = f"{b.weight_loss_percentage:.2f}%"
+            item_pct = QTableWidgetItem(pct_str)
+            item_pct.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if b.weight_loss_kg > 0:
+                item_pct.setForeground(QColor("#dc2626"))
+            elif b.weight_loss_kg < 0:
+                item_pct.setForeground(QColor("#16a34a"))
+            else:
+                item_pct.setForeground(QColor("#64748b"))
+            self.table.setItem(r, 11, item_pct)
+
+            # 12: Status
+            status_item = QTableWidgetItem(b.status)
+            status_item.setTextAlignment(Qt.AlignCenter)
+            if b.status == "ACTIVE":
+                status_item.setForeground(QColor("#16a34a"))
+            elif b.status == "DEPLETED":
+                status_item.setForeground(QColor("#d97706"))
+            else:
+                status_item.setForeground(QColor("#64748b"))
+            self.table.setItem(r, 12, status_item)
+
+            # 13: Actions
+            act_widget = QWidget()
+            act_box = QHBoxLayout(act_widget)
+            act_box.setContentsMargins(6, 2, 6, 2)
+            act_box.setAlignment(Qt.AlignCenter)
+
+            hist_btn = QPushButton("📜 History")
+            hist_btn.setProperty("class", "actionDark")
+            hist_btn.setToolTip("View full movement history and audit trail for this batch")
+            hist_btn.clicked.connect(lambda _, bid=b.batch_id: self._show_history(bid))
+            act_box.addWidget(hist_btn)
+            self.table.setCellWidget(r, 13, act_widget)
+
+        # Totals Summary Row (if any batches)
+        if batches:
+            r = self.table.rowCount()
+            self.table.insertRow(r)
+            f_bold = self.font()
+            f_bold.setBold(True)
+            tot_lbl = QTableWidgetItem("TOTALS")
+            tot_lbl.setFont(f_bold)
+            self.table.setItem(r, 0, tot_lbl)
+            for c in (1, 2, 3, 12, 13):
+                self.table.setItem(r, c, QTableWidgetItem(""))
+
+            cols_vals = [
+                (4, tot_intake),
+                (5, tot_sold),
+                (6, tot_returns),
+                (7, tot_stock),
+                (8, tot_recon_loss),
+                (9, tot_recon_gain),
+                (10, tot_loss),
+            ]
+            for col_idx, val in cols_vals:
+                it = QTableWidgetItem(format_weight(val))
+                it.setFont(f_bold)
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if col_idx == 10:
+                    if val > 0:
+                        it.setForeground(QColor("#dc2626"))
+                    elif val < 0:
+                        it.setForeground(QColor("#16a34a"))
+                self.table.setItem(r, col_idx, it)
+
+            tot_pct = ((tot_loss / tot_intake) * Decimal("100")) if tot_intake > 0 else Decimal("0.00")
+            pct_item = QTableWidgetItem(f"{tot_pct:.2f}%")
+            pct_item.setFont(f_bold)
+            pct_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if tot_loss > 0:
+                pct_item.setForeground(QColor("#dc2626"))
+            elif tot_loss < 0:
+                pct_item.setForeground(QColor("#16a34a"))
+            self.table.setItem(r, 11, pct_item)
+
+            for col_idx in range(14):
+                cell = self.table.item(r, col_idx)
+                if cell:
+                    cell.setBackground(QColor("#f1f5f9"))
+
+    def _show_history(self, batch_id: int):
+        dlg = BatchHistoryDialog(batch_id, self)
+        dlg.exec()
 
 class BatchStockReportTab(QWidget):
     """
