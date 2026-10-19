@@ -241,6 +241,9 @@ class PurchasesView(QWidget):
         self.notes_edit = QLineEdit()
         self.notes_edit.setPlaceholderText("Notes/Remarks")
 
+        self.batch_name_edit = QLineEdit()
+        self.batch_name_edit.setPlaceholderText("Auto (e.g. Batch A, Batch B...)")
+
         save_btn = QPushButton("Save Purchase")
         save_btn.setProperty("class", "primaryBtn")
         save_btn.clicked.connect(self._save_purchase)
@@ -279,8 +282,10 @@ class PurchasesView(QWidget):
         form_layout.addWidget(QLabel("Bank Ref:", self), 3, 4)
         form_layout.addWidget(self.ref_edit, 3, 5)
 
-        form_layout.addWidget(QLabel("Notes:", self), 4, 0)
-        form_layout.addWidget(self.notes_edit, 4, 1, 1, 4)
+        form_layout.addWidget(QLabel("Batch Name:", self), 4, 0)
+        form_layout.addWidget(self.batch_name_edit, 4, 1)
+        form_layout.addWidget(QLabel("Notes:", self), 4, 2)
+        form_layout.addWidget(self.notes_edit, 4, 3, 1, 2)
         form_layout.addWidget(save_btn, 4, 5)
 
         layout.addWidget(form_frame)
@@ -301,9 +306,9 @@ class PurchasesView(QWidget):
         layout.addLayout(filter_layout)
 
         # Transactions Table
-        self.table = QTableWidget(0, 13)
+        self.table = QTableWidget(0, 14)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Voucher / Ref", "Actions"
+            "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Batch #", "Voucher / Ref", "Actions"
         ])
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -368,6 +373,7 @@ class PurchasesView(QWidget):
         pay_type = self.pay_type_combo.currentText()
         voucher = self.voucher_edit.text().strip()
         ref = self.ref_edit.text().strip()
+        custom_batch = self.batch_name_edit.text().strip() or None
 
         if pay_type == "CASH" and not voucher:
             QMessageBox.warning(self, "Validation Error", "Voucher number is MANDATORY for CASH payments.")
@@ -388,7 +394,8 @@ class PurchasesView(QWidget):
                 payment_type=pay_type,
                 voucher_number=voucher,
                 bank_reference=ref,
-                notes=self.notes_edit.text()
+                notes=self.notes_edit.text(),
+                batch_number=custom_batch
             )
             QMessageBox.information(self, "Success", "Purchase transaction saved successfully!")
             self.box_count_spin.setValue(0)
@@ -398,6 +405,7 @@ class PurchasesView(QWidget):
             self.voucher_edit.clear()
             self.ref_edit.clear()
             self.notes_edit.clear()
+            self.batch_name_edit.clear()
             self.refresh_table()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save purchase: {str(e)}")
@@ -421,7 +429,8 @@ class PurchasesView(QWidget):
             self.table.setItem(r, 8, QTableWidgetItem(format_currency(p.rate_per_kg)))
             self.table.setItem(r, 9, QTableWidgetItem(format_currency(p.total_amount)))
             self.table.setItem(r, 10, QTableWidgetItem(p.payment_type))
-            self.table.setItem(r, 11, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
+            self.table.setItem(r, 11, QTableWidgetItem(p.batch.batch_number if p.batch else "-"))
+            self.table.setItem(r, 12, QTableWidgetItem(p.voucher_number or p.bank_reference or "-"))
 
             # Actions column with Edit button
             action_widget = QWidget()
@@ -434,7 +443,7 @@ class PurchasesView(QWidget):
             edit_btn.clicked.connect(lambda _, pur_obj=p: self._edit_purchase(pur_obj))
 
             act_box.addWidget(edit_btn)
-            self.table.setCellWidget(r, 12, action_widget)
+            self.table.setCellWidget(r, 13, action_widget)
 
     def _edit_purchase(self, purchase):
         dlg = EditPurchaseDialog(purchase=purchase, parent=self)

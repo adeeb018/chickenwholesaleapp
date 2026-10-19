@@ -38,6 +38,12 @@ class BalanceService:
                 .filter(CustomerPayment.customer_id == customer_id, CustomerPayment.is_deleted == False)
                 .all()
             )
+            from app.database.models import CustomerReturn
+            all_returns = (
+                session.query(CustomerReturn)
+                .filter(CustomerReturn.customer_id == customer_id, CustomerReturn.is_deleted == False)
+                .all()
+            )
 
             return generate_customer_ledger(
                 customer_id=customer.id,
@@ -49,7 +55,8 @@ class BalanceService:
                 all_sales=all_sales,
                 all_payments=all_payments,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                all_returns=all_returns
             )
         finally:
             session.close()

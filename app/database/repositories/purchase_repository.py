@@ -60,7 +60,8 @@ class PurchaseRepository:
         box_count: int = 0,
         voucher_number: Optional[str] = None,
         bank_reference: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        batch_number: Optional[str] = None
     ) -> Purchase:
         if gross_weight_kg is not None:
             gross = round_weight(gross_weight_kg)
@@ -105,8 +106,24 @@ class PurchaseRepository:
             notes=notes.strip() if notes else None
         )
         self.session.add(purchase)
+        self.session.flush()
+
+        # Automatically create the associated PurchaseBatch and initial inventory movement
+        from app.services.inventory_service import InventoryService
+        InventoryService.create_batch(
+            session=self.session,
+            purchase_id=purchase.id,
+            item_id=item_id,
+            purchase_date=transaction_date,
+            gross_weight_kg=gross,
+            box_weight_kg=box,
+            box_count=box_cnt,
+            batch_number=batch_number
+        )
+
         self.session.commit()
         self.session.refresh(purchase)
+        _ = purchase.batch
         return purchase
 
     def update(
@@ -155,6 +172,40 @@ class PurchaseRepository:
         rate = round_money(rate_per_kg)
         total = round_money(net * rate)
 
+        # Update associated batch if safe
+        batch = purchase.batch
+        if batch:
+            diff = round_weight(net - purchase.net_weight_kg)
+            new_stock = round_weight(batch.current_stock_kg + diff)
+            if new_stock < 0:
+                raise ValueError(
+                    f"Cannot reduce purchase weight by {abs(diff)} KG: "
+                    f"batch '{batch.batch_number}' only has {batch.current_stock_kg} KG available stock."
+                )
+            batch.gross_weight_kg = gross
+            batch.box_weight_kg = box
+            batch.box_count = box_cnt
+            batch.net_weight_kg = net
+            batch.current_stock_kg = new_stock
+            batch.purchase_date = transaction_date
+            batch.item_id = item_id
+
+            # Update initial PURCHASE movement
+            from app.database.models import InventoryMovement
+            init_mov = (
+                self.session.query(InventoryMovement)
+                .filter(
+                    InventoryMovement.batch_id == batch.id,
+                    InventoryMovement.movement_type == "PURCHASE",
+                    InventoryMovement.reference_type == "PURCHASE",
+                    InventoryMovement.reference_id == purchase.id
+                )
+                .first()
+            )
+            if init_mov:
+                init_mov.quantity_kg = net
+                init_mov.business_date = transaction_date
+
         purchase.transaction_date = transaction_date
         purchase.provider_id = provider_id
         purchase.item_id = item_id
@@ -178,6 +229,16 @@ class PurchaseRepository:
         purchase = self.get_by_id(purchase_id)
         if not purchase:
             return False
+
+        batch = purchase.batch
+        if batch:
+            if batch.allocations:
+                raise ValueError("Cannot delete purchase: stock has already been sold from this batch.")
+            if batch.reconciliations:
+                raise ValueError("Cannot delete purchase: daily stock reconciliations exist for this batch.")
+            batch.soft_delete()
+
         purchase.soft_delete()
         self.session.commit()
         return True
+

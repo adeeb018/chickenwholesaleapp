@@ -5,13 +5,17 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from app.config.settings import get_database_uri, get_db_path
 from app.database.base import Base
-from app.database.models import Item, AppSetting, CustomerRateAdjustment
+from app.database.models import (
+    Item, AppSetting, CustomerRateAdjustment,
+    PurchaseBatch, SaleBatchAllocation, InventoryMovement,
+    DailyStockReconciliation, CustomerReturn, CustomerReturnLine
+)
 
 _engine = None
 _SessionLocal = None
 
 def _migrate_schema(engine):
-    """Executes automatic schema migrations for newly added columns on existing DB files."""
+    """Executes automatic schema migrations for newly added columns and tables on existing DB files."""
     try:
         with engine.connect() as conn:
             # Sales table migrations
@@ -39,6 +43,47 @@ def _migrate_schema(engine):
                 # Backfill gross_weight_kg and net_weight_kg for legacy purchases
                 conn.exec_driver_sql("UPDATE purchases SET gross_weight_kg = weight_kg, net_weight_kg = weight_kg WHERE gross_weight_kg = 0.000 AND weight_kg > 0;")
             
+            # Backfill legacy purchases into purchase_batches and inventory_movements
+            # Check if purchase_batches table exists
+            table_check = conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table' AND name='purchase_batches';").fetchone()
+            if table_check:
+                purchases_without_batches = conn.exec_driver_sql("""
+                    SELECT p.id, p.transaction_date, p.item_id, p.gross_weight_kg, p.box_weight_kg, p.box_count, p.net_weight_kg
+                    FROM purchases p
+                    LEFT JOIN purchase_batches b ON p.id = b.purchase_id
+                    WHERE b.id IS NULL AND p.is_deleted = 0;
+                """).fetchall()
+
+                for row in purchases_without_batches:
+                    p_id, t_date, item_id, gross, box, box_cnt, net = row
+                    gross = gross or 0.0
+                    box = box or 0.0
+                    box_cnt = box_cnt or 0
+                    net = net or 0.0
+                    batch_num = f"Batch P{p_id}"
+                    
+                    cursor = conn.exec_driver_sql(
+                        """
+                        INSERT INTO purchase_batches (
+                            batch_number, purchase_id, item_id, purchase_date,
+                            gross_weight_kg, box_weight_kg, box_count, net_weight_kg,
+                            current_stock_kg, status, is_deleted, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+                        """,
+                        (batch_num, p_id, item_id, t_date, gross, box, box_cnt, net, net)
+                    )
+                    batch_id = cursor.lastrowid
+                    
+                    conn.exec_driver_sql(
+                        """
+                        INSERT INTO inventory_movements (
+                            batch_id, movement_type, quantity_kg, business_date,
+                            reference_type, reference_id, reason, created_at, updated_at
+                        ) VALUES (?, 'PURCHASE', ?, ?, 'PURCHASE', ?, 'Initial Purchase Stock Migration', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+                        """,
+                        (batch_id, net, t_date, p_id)
+                    )
+
             conn.commit()
     except Exception as e:
         pass

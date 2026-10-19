@@ -41,7 +41,8 @@ class PurchaseService:
         box_count: int = 0,
         voucher_number: Optional[str] = None,
         bank_reference: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        batch_number: Optional[str] = None
     ) -> Purchase:
         pay_type = payment_type.upper()
         if pay_type not in ("CASH", "BANK"):
@@ -64,7 +65,8 @@ class PurchaseService:
                 box_count=box_count,
                 voucher_number=voucher_number,
                 bank_reference=bank_reference,
-                notes=notes
+                notes=notes,
+                batch_number=batch_number
             )
 
     @staticmethod

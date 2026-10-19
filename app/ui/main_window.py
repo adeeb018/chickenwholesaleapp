@@ -8,8 +8,11 @@ from app.ui.components.voucher_search_dialog import VoucherSearchDialog
 from app.ui.views.dashboard_view import DashboardView
 from app.ui.views.purchases_view import PurchasesView
 from app.ui.views.sales_view import SalesView
+from app.ui.views.customer_returns_view import CustomerReturnsView
 from app.ui.views.customer_payments_view import CustomerPaymentsView
 from app.ui.views.provider_payments_view import ProviderPaymentsView
+from app.ui.views.batches_view import BatchesView
+from app.ui.views.reconciliation_view import ReconciliationView
 from app.ui.views.customers_view import CustomersView
 from app.ui.views.providers_view import ProvidersView
 from app.ui.views.items_view import ItemsView
@@ -67,17 +70,22 @@ class MainWindow(QMainWindow):
         add_category("Transactions")
         add_nav("🛒 Purchases", 1)
         add_nav("🏷️ Sales", 2)
-        add_nav("💵 Customer Payments", 3)
-        add_nav("💳 Provider Payments", 4)
+        add_nav("🔁 Customer Returns", 3)
+        add_nav("💵 Customer Payments", 4)
+        add_nav("💳 Provider Payments", 5)
+
+        add_category("Inventory & Stock")
+        add_nav("📦 Batches & Stock", 6)
+        add_nav("⚖️ Daily Reconciliation", 7)
 
         add_category("Masters")
-        add_nav("👥 Customers", 5)
-        add_nav("🏭 Providers", 6)
-        add_nav("🍗 Chicken Types", 7)
+        add_nav("👥 Customers", 8)
+        add_nav("🏭 Providers", 9)
+        add_nav("🍗 Chicken Types", 10)
 
         add_category("Analytics & Settings")
-        add_nav("📈 Reports Hub", 8)
-        add_nav("⚙️ Settings & Backup", 9)
+        add_nav("📈 Reports Hub", 11)
+        add_nav("⚙️ Settings & Backup", 12)
 
         sidebar_layout.addStretch()
 
@@ -114,24 +122,30 @@ class MainWindow(QMainWindow):
         self.dashboard_view = DashboardView()
         self.purchases_view = PurchasesView()
         self.sales_view = SalesView()
+        self.returns_view = CustomerReturnsView()
         self.customer_payments_view = CustomerPaymentsView()
         self.provider_payments_view = ProviderPaymentsView()
+        self.batches_view = BatchesView()
+        self.reconciliation_view = ReconciliationView()
         self.customers_view = CustomersView()
         self.providers_view = ProvidersView()
         self.items_view = ItemsView()
         self.reports_view = ReportsView()
         self.settings_view = SettingsView()
 
-        self.stacked.addWidget(self.dashboard_view)
-        self.stacked.addWidget(self.purchases_view)
-        self.stacked.addWidget(self.sales_view)
-        self.stacked.addWidget(self.customer_payments_view)
-        self.stacked.addWidget(self.provider_payments_view)
-        self.stacked.addWidget(self.customers_view)
-        self.stacked.addWidget(self.providers_view)
-        self.stacked.addWidget(self.items_view)
-        self.stacked.addWidget(self.reports_view)
-        self.stacked.addWidget(self.settings_view)
+        self.stacked.addWidget(self.dashboard_view)          # 0
+        self.stacked.addWidget(self.purchases_view)          # 1
+        self.stacked.addWidget(self.sales_view)              # 2
+        self.stacked.addWidget(self.returns_view)            # 3
+        self.stacked.addWidget(self.customer_payments_view)  # 4
+        self.stacked.addWidget(self.provider_payments_view)  # 5
+        self.stacked.addWidget(self.batches_view)            # 6
+        self.stacked.addWidget(self.reconciliation_view)     # 7
+        self.stacked.addWidget(self.customers_view)          # 8
+        self.stacked.addWidget(self.providers_view)          # 9
+        self.stacked.addWidget(self.items_view)              # 10
+        self.stacked.addWidget(self.reports_view)            # 11
+        self.stacked.addWidget(self.settings_view)           # 12
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -151,8 +165,10 @@ class MainWindow(QMainWindow):
             btn.setChecked(i == index)
         
         titles = [
-            "Dashboard", "Purchases", "Sales", "Customer Payments", "Provider Payments",
-            "Customer Master", "Provider Master", "Chicken Types / Items", "Reports Hub", "Settings & Backup"
+            "Dashboard", "Purchases", "Sales", "Customer Returns",
+            "Customer Payments", "Provider Payments", "Batches & Stock Management",
+            "Daily Physical Stock Reconciliation", "Customer Master", "Provider Master",
+            "Chicken Types / Items", "Reports Hub", "Settings & Backup"
         ]
         if index < len(titles):
             self.title_label.setText(titles[index])

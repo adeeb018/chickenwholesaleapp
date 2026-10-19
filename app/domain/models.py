@@ -48,6 +48,8 @@ class CustomerStatement:
     total_payments: Decimal
     closing_balance: Decimal
     ledger_entries: List[LedgerEntry]
+    total_returns_amount: Decimal = Decimal("0.00")
+    total_returns_weight_kg: Decimal = Decimal("0.000")
 
 @dataclass
 class ProviderStatement:

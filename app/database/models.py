@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Numeric, Date, ForeignKey, Text, Boolean
+    Column, Integer, String, Numeric, Date, DateTime, ForeignKey, Text, Boolean
 )
 from sqlalchemy.orm import relationship
 from app.database.base import Base, TimestampMixin, SoftDeleteMixin
@@ -20,6 +20,7 @@ class Customer(Base, TimestampMixin, SoftDeleteMixin):
     )
     sales = relationship("Sale", back_populates="customer")
     payments = relationship("CustomerPayment", back_populates="customer")
+    returns = relationship("CustomerReturn", back_populates="customer")
     rate_adjustments = relationship(
         "CustomerRateAdjustment", back_populates="customer", cascade="all, delete-orphan"
     )
@@ -104,6 +105,7 @@ class Purchase(Base, TimestampMixin, SoftDeleteMixin):
 
     provider = relationship("Provider", back_populates="purchases")
     item = relationship("Item", back_populates="purchases")
+    batch = relationship("PurchaseBatch", uselist=False, back_populates="purchase", lazy="joined")
 
 class Sale(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "sales"
@@ -123,6 +125,8 @@ class Sale(Base, TimestampMixin, SoftDeleteMixin):
 
     customer = relationship("Customer", back_populates="sales")
     item = relationship("Item", back_populates="sales")
+    allocations = relationship("SaleBatchAllocation", back_populates="sale", cascade="all, delete-orphan", lazy="joined")
+    returns = relationship("CustomerReturn", back_populates="original_sale")
 
 class CustomerPayment(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "customer_payments"
@@ -178,4 +182,138 @@ class CustomerRateAdjustment(Base, TimestampMixin, SoftDeleteMixin):
 
     def __repr__(self):
         return f"<CustomerRateAdjustment id={self.id} customer_id={self.customer_id} adj={self.adjustment_per_kg} {self.start_date}->{self.end_date}>"
+
+class PurchaseBatch(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "purchase_batches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_number = Column(String(100), nullable=False, unique=True, index=True)
+    purchase_id = Column(Integer, ForeignKey("purchases.id"), nullable=True, index=True)
+    item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+    purchase_date = Column(Date, nullable=False, index=True)
+    gross_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    box_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    box_count = Column(Integer, nullable=False, default=0)
+    net_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    current_stock_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    status = Column(String(20), nullable=False, default="ACTIVE", index=True)  # ACTIVE, DEPLETED, CLOSED
+    closed_at = Column(DateTime, nullable=True)
+    closed_notes = Column(Text, nullable=True)
+
+    # Relationships
+    purchase = relationship("Purchase", back_populates="batch")
+    item = relationship("Item")
+    allocations = relationship("SaleBatchAllocation", back_populates="batch")
+    movements = relationship("InventoryMovement", back_populates="batch", cascade="all, delete-orphan")
+    reconciliations = relationship("DailyStockReconciliation", back_populates="batch", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<PurchaseBatch id={self.id} num='{self.batch_number}' stock={self.current_stock_kg} status={self.status}>"
+
+class SaleBatchAllocation(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "sale_batch_allocations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
+    batch_id = Column(Integer, ForeignKey("purchase_batches.id"), nullable=False, index=True)
+    gross_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    box_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    box_count = Column(Integer, nullable=False, default=0)
+    net_weight_kg = Column(Numeric(12, 3), nullable=False)
+    rate_per_kg = Column(Numeric(12, 2), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+
+    sale = relationship("Sale", back_populates="allocations")
+    batch = relationship("PurchaseBatch", back_populates="allocations")
+    return_lines = relationship("CustomerReturnLine", back_populates="sale_allocation")
+
+    def __repr__(self):
+        return f"<SaleBatchAllocation id={self.id} sale_id={self.sale_id} batch_id={self.batch_id} net={self.net_weight_kg}>"
+
+class InventoryMovement(Base, TimestampMixin):
+    __tablename__ = "inventory_movements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_id = Column(Integer, ForeignKey("purchase_batches.id"), nullable=False, index=True)
+    movement_type = Column(String(30), nullable=False, index=True)
+    # PURCHASE, SALE, CUSTOMER_RETURN, STOCK_LOSS, STOCK_GAIN, STOCK_ADJUSTMENT
+    quantity_kg = Column(Numeric(12, 3), nullable=False)
+    business_date = Column(Date, nullable=False, index=True)
+    reference_type = Column(String(50), nullable=True)  # PURCHASE, SALE, CUSTOMER_RETURN, RECONCILIATION, BATCH_CLOSURE
+    reference_id = Column(Integer, nullable=True, index=True)
+    reason = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    batch = relationship("PurchaseBatch", back_populates="movements")
+
+    def __repr__(self):
+        return f"<InventoryMovement id={self.id} batch_id={self.batch_id} type={self.movement_type} qty={self.quantity_kg}>"
+
+class DailyStockReconciliation(Base, TimestampMixin):
+    __tablename__ = "daily_stock_reconciliations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_id = Column(Integer, ForeignKey("purchase_batches.id"), nullable=False, index=True)
+    business_date = Column(Date, nullable=False, index=True)
+    opening_stock_kg = Column(Numeric(12, 3), nullable=False)
+    stock_additions_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    sales_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    returns_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    other_adjustments_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    calculated_closing_kg = Column(Numeric(12, 3), nullable=False)
+    actual_closing_kg = Column(Numeric(12, 3), nullable=False)
+    difference_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    status = Column(String(30), nullable=False, default="RECONCILED")  # RECONCILED, CORRECTED
+    reason = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+
+    batch = relationship("PurchaseBatch", back_populates="reconciliations")
+
+    def __repr__(self):
+        return f"<DailyStockReconciliation id={self.id} batch_id={self.batch_id} date={self.business_date} diff={self.difference_kg}>"
+
+class CustomerReturn(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "customer_returns"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    return_number = Column(String(50), nullable=False, unique=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    original_sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
+    return_date = Column(Date, nullable=False, index=True)
+    total_returned_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    financial_credit_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    notes = Column(Text, nullable=True)
+
+    customer = relationship("Customer", back_populates="returns")
+    original_sale = relationship("Sale", back_populates="returns")
+    lines = relationship("CustomerReturnLine", back_populates="customer_return", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<CustomerReturn id={self.id} num='{self.return_number}' cust={self.customer_id} weight={self.total_returned_weight_kg}>"
+
+class CustomerReturnLine(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "customer_return_lines"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_return_id = Column(Integer, ForeignKey("customer_returns.id", ondelete="CASCADE"), nullable=False, index=True)
+    sale_batch_allocation_id = Column(Integer, ForeignKey("sale_batch_allocations.id"), nullable=True, index=True)
+    batch_id = Column(Integer, ForeignKey("purchase_batches.id"), nullable=False, index=True)
+    returned_gross_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    returned_box_weight_kg = Column(Numeric(12, 3), nullable=False, default=0.000)
+    returned_net_weight_kg = Column(Numeric(12, 3), nullable=False)
+    rate_per_kg = Column(Numeric(12, 2), nullable=False)
+    financial_amount = Column(Numeric(12, 2), nullable=False)
+    resale_eligible = Column(Boolean, nullable=False, default=True)
+    reason = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    customer_return = relationship("CustomerReturn", back_populates="lines")
+    sale_allocation = relationship("SaleBatchAllocation", back_populates="return_lines")
+    batch = relationship("PurchaseBatch")
+
+    def __repr__(self):
+        return f"<CustomerReturnLine id={self.id} return_id={self.customer_return_id} batch_id={self.batch_id} net={self.returned_net_weight_kg}>"
+
 

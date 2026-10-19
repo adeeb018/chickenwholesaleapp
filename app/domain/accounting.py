@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional
-from app.utils.decimal_utils import round_money, round_weight, to_decimal
+from app.utils.decimal_utils import round_money, round_weight, to_decimal, format_weight
 from app.domain.models import LedgerEntry, CustomerStatement, ProviderStatement
 
 def calculate_customer_period_opening_balance(
@@ -9,12 +9,13 @@ def calculate_customer_period_opening_balance(
     initial_opening_date: Optional[date],
     prior_sales: List[any],
     prior_payments: List[any],
-    period_start_date: date
+    period_start_date: date,
+    prior_returns: Optional[List[any]] = None
 ) -> Decimal:
     """
     Calculates customer opening balance as of period_start_date.
     Includes initial opening balance (if initial_opening_date < period_start_date or equal)
-    plus all sales prior to period_start_date minus all payments prior to period_start_date.
+    plus all sales prior to period_start_date minus all payments and customer returns prior to period_start_date.
     """
     running = Decimal("0.00")
     
@@ -29,6 +30,11 @@ def calculate_customer_period_opening_balance(
     for pymt in prior_payments:
         if pymt.payment_date < period_start_date:
             running -= to_decimal(pymt.amount)
+
+    if prior_returns:
+        for ret in prior_returns:
+            if ret.return_date < period_start_date:
+                running -= to_decimal(ret.financial_credit_amount)
             
     return round_money(running)
 
@@ -68,12 +74,15 @@ def generate_customer_ledger(
     all_sales: List[any],
     all_payments: List[any],
     start_date: date,
-    end_date: date
+    end_date: date,
+    all_returns: Optional[List[any]] = None
 ) -> CustomerStatement:
     """
     Generates a full Customer Statement with period opening balance,
     chronological ledger entries within start_date..end_date, and closing balance.
     """
+    returns_list = all_returns or []
+
     # 1. Filter prior transactions vs period transactions
     prior_sales = [s for s in all_sales if s.transaction_date < start_date]
     period_sales = [s for s in all_sales if start_date <= s.transaction_date <= end_date]
@@ -81,13 +90,17 @@ def generate_customer_ledger(
     prior_payments = [p for p in all_payments if p.payment_date < start_date]
     period_payments = [p for p in all_payments if start_date <= p.payment_date <= end_date]
 
+    prior_returns = [r for r in returns_list if r.return_date < start_date]
+    period_returns = [r for r in returns_list if start_date <= r.return_date <= end_date]
+
     # 2. Compute opening balance at start_date
     period_opening = calculate_customer_period_opening_balance(
         initial_opening_balance=initial_opening_balance,
         initial_opening_date=initial_opening_date,
         prior_sales=prior_sales,
         prior_payments=prior_payments,
-        period_start_date=start_date
+        period_start_date=start_date,
+        prior_returns=prior_returns
     )
 
     # 3. Build combined event stream for period
@@ -99,6 +112,13 @@ def generate_customer_ledger(
             "obj": s,
             "sort_id": s.id
         })
+    for r in period_returns:
+        events.append({
+            "date": r.return_date,
+            "type": "CUSTOMER_RETURN",
+            "obj": r,
+            "sort_id": r.id
+        })
     for p in period_payments:
         events.append({
             "date": p.payment_date,
@@ -107,8 +127,15 @@ def generate_customer_ledger(
             "sort_id": p.id
         })
 
-    # Sort events chronologically by date, then type (Sale before Payment on same day if equal), then ID
-    events.sort(key=lambda x: (x["date"], 0 if x["type"] == "SALE" else 1, x["sort_id"]))
+    # Sort events chronologically by date, then type (Sale before Return before Payment on same day), then ID
+    def event_order(t):
+        if t == "SALE":
+            return 0
+        elif t == "CUSTOMER_RETURN":
+            return 1
+        return 2
+
+    events.sort(key=lambda x: (x["date"], event_order(x["type"]), x["sort_id"]))
 
     ledger_entries: List[LedgerEntry] = []
     running_balance = period_opening
@@ -130,6 +157,8 @@ def generate_customer_ledger(
     total_sales_amount = Decimal("0.00")
     total_cash_payments = Decimal("0.00")
     total_bank_payments = Decimal("0.00")
+    total_returns_amount = Decimal("0.00")
+    total_returns_weight = Decimal("0.000")
 
     for ev in events:
         if ev["type"] == "SALE":
@@ -163,6 +192,30 @@ def generate_customer_ledger(
                     net_weight_kg=net_w,
                     rate_per_kg=rate,
                     discount_amount=disc
+                )
+            )
+        elif ev["type"] == "CUSTOMER_RETURN":
+            r = ev["obj"]
+            amt = round_money(r.financial_credit_amount)
+            net_w = round_weight(r.total_returned_weight_kg)
+            running_balance -= amt
+            total_returns_amount += amt
+            total_returns_weight += net_w
+
+            desc = f"Customer Return #{r.return_number} ({format_weight(net_w)})"
+            if r.notes:
+                desc += f" [{r.notes}]"
+
+            ledger_entries.append(
+                LedgerEntry(
+                    entry_date=r.return_date,
+                    transaction_type="CUSTOMER_RETURN",
+                    reference_id=r.id,
+                    description=desc,
+                    debit=Decimal("0.00"),
+                    credit=amt,
+                    running_balance=round_money(running_balance),
+                    net_weight_kg=net_w
                 )
             )
         elif ev["type"] == "PAYMENT_RECEIVED":
@@ -212,7 +265,9 @@ def generate_customer_ledger(
         total_bank_payments=round_money(total_bank_payments),
         total_payments=round_money(total_payments),
         closing_balance=closing_balance,
-        ledger_entries=ledger_entries
+        ledger_entries=ledger_entries,
+        total_returns_amount=round_money(total_returns_amount),
+        total_returns_weight_kg=round_weight(total_returns_weight)
     )
 
 def generate_provider_ledger(
