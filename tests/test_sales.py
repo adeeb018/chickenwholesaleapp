@@ -273,5 +273,71 @@ def test_sales_view_boxes_ui_and_edit_dialog(qapp, monkeypatch):
     data = dlg.get_data()
     assert data["box_count"] == 10
 
+def test_multi_batch_sale_dialog_layout_and_data_visibility(qapp):
+    from app.services.purchase_service import PurchaseService
+    from app.ui.views.sales_view import MultiBatchSaleDialog
+    from PySide6.QtWidgets import QHeaderView
+
+    prov = MasterService.create_provider(name="Multi Batch Provider")
+    item = MasterService.get_all_items()[0]
+
+    # Create two purchase batches
+    p1 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=200,
+        box_weight_kg=10,
+        rate_per_kg=130,
+        voucher_number="V-101"
+    )
+    p2 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=300,
+        box_weight_kg=15,
+        rate_per_kg=135,
+        voucher_number="V-102"
+    )
+
+    dlg = MultiBatchSaleDialog(item_id=item.id, default_rate=Decimal("175.00"))
+
+    # 1. Verify dialog sizing and row heights
+    assert dlg.width() >= 960
+    assert dlg.table.verticalHeader().defaultSectionSize() >= 42
+
+    # 2. Verify column widths and stretch modes
+    header = dlg.table.horizontalHeader()
+    assert header.sectionResizeMode(0) == QHeaderView.Stretch
+    assert dlg.table.columnWidth(1) == 90   # Boxes
+    assert dlg.table.columnWidth(2) == 125  # Gross
+    assert dlg.table.columnWidth(3) == 125  # Box
+    assert dlg.table.columnWidth(4) == 125  # Net
+    assert dlg.table.columnWidth(5) == 120  # Rate
+    assert dlg.table.columnWidth(6) == 130  # Amount
+    assert dlg.table.columnWidth(7) == 95   # Action
+
+    # 3. Verify row auto-calculation and visibility
+    assert dlg.table.rowCount() == 1
+    dlg.table.cellWidget(0, 1).setValue(5)       # Boxes
+    dlg.table.cellWidget(0, 2).setValue(110.000) # Gross
+    dlg.table.cellWidget(0, 3).setValue(10.000)  # Box
+    dlg.table.cellWidget(0, 5).setValue(175.00)  # Rate
+
+    # Live math updates
+    assert dlg.table.cellWidget(0, 4).text() == "100.000 KG"
+    assert dlg.table.cellWidget(0, 6).text() == "₹17,500.00"
+    assert "100.000 KG" in dlg.total_net_lbl.text()
+    assert "17,500.00" in dlg.total_amt_lbl.text()
+
+    # 4. Add second row and test removal
+    dlg._add_row()
+    assert dlg.table.rowCount() == 2
+    del_container = dlg.table.cellWidget(1, 7)
+    del_btn = del_container.findChild(object)
+    dlg._remove_row(1)
+    assert dlg.table.rowCount() == 1
+
 
 

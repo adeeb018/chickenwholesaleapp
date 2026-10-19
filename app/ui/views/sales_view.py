@@ -28,31 +28,46 @@ class MultiBatchSaleDialog(QDialog):
         self.allocations_data = []
 
         self.setWindowTitle("Multi-Batch Sale Allocation")
-        self.resize(780, 480)
+        self.resize(1040, 560)
+        self.setMinimumSize(960, 480)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
         info_lbl = QLabel(
-            "Allocate required quantities from one or multiple available batches. "
-            "Available sellable stock is validated per batch."
+            "<b>Multi-Batch Allocation:</b> Divide this sale across one or multiple available batches. "
+            "Available sellable stock is automatically checked and updated per batch."
         )
-        info_lbl.setStyleSheet("color: #475569; font-size: 13px;")
+        info_lbl.setStyleSheet("color: #334155; font-size: 13px; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; border: 1px solid #cbd5e1;")
         layout.addWidget(info_lbl)
 
         # Allocations Table
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
-            "Batch", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
+            "Batch / Inventory Source", "Boxes", "Gross Wt (KG)", "Box Wt (KG)", "Net Wt (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
-        layout.addWidget(self.table)
+        header = self.table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.Fixed)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+
+        self.table.setColumnWidth(1, 90)   # Boxes
+        self.table.setColumnWidth(2, 125)  # Gross (KG)
+        self.table.setColumnWidth(3, 125)  # Box (KG)
+        self.table.setColumnWidth(4, 125)  # Net (KG)
+        self.table.setColumnWidth(5, 120)  # Rate (₹/KG)
+        self.table.setColumnWidth(6, 130)  # Amount (₹)
+        self.table.setColumnWidth(7, 95)   # Action
+
+        self.table.verticalHeader().setDefaultSectionSize(46)
+        self.table.verticalHeader().setVisible(False)
+        layout.addWidget(self.table, 1)
 
         btn_row = QHBoxLayout()
         add_row_btn = QPushButton("➕ Add Batch Allocation")
         add_row_btn.setProperty("class", "secondaryBtn")
+        add_row_btn.setStyleSheet("font-size: 13px; font-weight: bold; padding: 6px 14px;")
         add_row_btn.clicked.connect(self._add_row)
         btn_row.addWidget(add_row_btn)
         btn_row.addStretch()
@@ -64,20 +79,28 @@ class MultiBatchSaleDialog(QDialog):
             QFrame {
                 background-color: #f8fafc;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 10px;
+                border-radius: 8px;
+                padding: 10px 14px;
             }
         """)
         sum_layout = QHBoxLayout(summary_frame)
+        sum_layout.setSpacing(20)
+
         self.total_boxes_lbl = QLabel("Total Boxes: 0")
+        self.total_boxes_lbl.setStyleSheet("font-size: 13px; font-weight: 600; color: #334155;")
+
         self.total_gross_lbl = QLabel("Gross: 0.000 KG")
-        self.total_net_lbl = QLabel("<b>Total Net: 0.000 KG</b>")
-        self.total_net_lbl.setStyleSheet("color: #0369a1; font-size: 14px;")
-        self.total_amt_lbl = QLabel("<b>Total Amount: ₹0.00</b>")
-        self.total_amt_lbl.setStyleSheet("color: #15803d; font-size: 14px;")
+        self.total_gross_lbl.setStyleSheet("font-size: 13px; font-weight: 600; color: #334155;")
+
+        self.total_net_lbl = QLabel("Total Net: 0.000 KG")
+        self.total_net_lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #0369a1; background: #e0f2fe; padding: 4px 10px; border-radius: 4px;")
+
+        self.total_amt_lbl = QLabel("Total Amount: ₹0.00")
+        self.total_amt_lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #15803d; background: #dcfce7; padding: 4px 10px; border-radius: 4px;")
 
         sum_layout.addWidget(self.total_boxes_lbl)
         sum_layout.addWidget(self.total_gross_lbl)
+        sum_layout.addStretch()
         sum_layout.addWidget(self.total_net_lbl)
         sum_layout.addWidget(self.total_amt_lbl)
         layout.addWidget(summary_frame)
@@ -87,9 +110,12 @@ class MultiBatchSaleDialog(QDialog):
         actions_row.addStretch()
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setProperty("class", "secondaryBtn")
+        cancel_btn.setStyleSheet("min-width: 90px; padding: 6px 14px;")
         cancel_btn.clicked.connect(self.reject)
-        confirm_btn = QPushButton("Apply Allocations")
+
+        confirm_btn = QPushButton("✓ Apply Allocations")
         confirm_btn.setProperty("class", "primaryBtn")
+        confirm_btn.setStyleSheet("min-width: 140px; padding: 6px 16px; font-weight: bold;")
         confirm_btn.clicked.connect(self._validate_and_accept)
 
         actions_row.addWidget(cancel_btn)
@@ -108,49 +134,130 @@ class MultiBatchSaleDialog(QDialog):
         self.table.insertRow(r)
 
         batch_combo = QComboBox()
+        batch_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        batch_combo.setStyleSheet("""
+            QComboBox {
+                font-size: 13px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                background-color: #ffffff;
+            }
+        """)
         for b in self.available_batches:
             batch_combo.addItem(
-                f"{b.batch_number} (Avail: {format_weight(b.current_stock_kg)}, {b.purchase_date.strftime('%d/%m')})",
+                f"{b.batch_number} (Avail: {format_weight(b.current_stock_kg)})",
                 b.id
             )
 
         box_count_spin = QSpinBox()
         box_count_spin.setRange(0, 9999)
         box_count_spin.setValue(0)
+        box_count_spin.setAlignment(Qt.AlignRight)
+        box_count_spin.setStyleSheet("""
+            QSpinBox {
+                font-size: 13px;
+                font-weight: 600;
+                padding: 4px 6px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                background-color: #ffffff;
+            }
+        """)
 
         gross_spin = QDoubleSpinBox()
         gross_spin.setRange(0.000, 999999.000)
         gross_spin.setDecimals(3)
         gross_spin.setSuffix(" KG")
+        gross_spin.setAlignment(Qt.AlignRight)
+        gross_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                font-size: 13px;
+                font-weight: 600;
+                padding: 4px 6px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                background-color: #ffffff;
+            }
+        """)
 
         box_spin = QDoubleSpinBox()
         box_spin.setRange(0.000, 999999.000)
         box_spin.setDecimals(3)
         box_spin.setSuffix(" KG")
+        box_spin.setAlignment(Qt.AlignRight)
+        box_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                font-size: 13px;
+                font-weight: 600;
+                padding: 4px 6px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                background-color: #ffffff;
+            }
+        """)
 
         net_lbl = QLabel("0.000 KG")
-        net_lbl.setAlignment(Qt.AlignCenter)
-        net_lbl.setStyleSheet("font-weight: bold; color: #0369a1;")
+        net_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        net_lbl.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                font-weight: bold;
+                color: #0369a1;
+                background-color: #f0f9ff;
+                border: 1px solid #bae6fd;
+                border-radius: 5px;
+                padding: 4px 8px;
+            }
+        """)
 
         rate_spin = QDoubleSpinBox()
         rate_spin.setRange(0.00, 999999.00)
         rate_spin.setDecimals(2)
         rate_spin.setPrefix("₹ ")
         rate_spin.setValue(float(self.default_rate))
+        rate_spin.setAlignment(Qt.AlignRight)
+        rate_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                font-size: 13px;
+                font-weight: 600;
+                padding: 4px 6px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                background-color: #ffffff;
+            }
+        """)
 
         amt_lbl = QLabel("₹0.00")
-        amt_lbl.setAlignment(Qt.AlignCenter)
-        amt_lbl.setStyleSheet("font-weight: bold; color: #15803d;")
+        amt_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        amt_lbl.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                font-weight: bold;
+                color: #15803d;
+                background-color: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: 5px;
+                padding: 4px 8px;
+            }
+        """)
 
-        del_btn = QPushButton("🗑️")
+        del_container = QWidget()
+        del_layout = QHBoxLayout(del_container)
+        del_layout.setContentsMargins(4, 4, 4, 4)
+        del_layout.setAlignment(Qt.AlignCenter)
+        del_btn = QPushButton("🗑️ Delete")
         del_btn.setProperty("class", "actionDelete")
-        del_btn.clicked.connect(lambda _, row_idx=r: self._remove_row(row_idx))
+        del_btn.setStyleSheet("font-size: 11px; font-weight: 700; min-height: 26px; padding: 3px 8px; border-radius: 5px;")
+        del_btn.clicked.connect(self._on_remove_clicked)
+        del_layout.addWidget(del_btn)
 
-        # Auto-calc connections
-        gross_spin.valueChanged.connect(lambda: self._calc_row(r))
-        box_spin.valueChanged.connect(lambda: self._calc_row(r))
-        rate_spin.valueChanged.connect(lambda: self._calc_row(r))
-        box_count_spin.valueChanged.connect(self._recalculate_totals)
+        # Auto-calc connections - all call unified _recalculate_all
+        gross_spin.valueChanged.connect(self._recalculate_all)
+        box_spin.valueChanged.connect(self._recalculate_all)
+        rate_spin.valueChanged.connect(self._recalculate_all)
+        box_count_spin.valueChanged.connect(self._recalculate_all)
 
         self.table.setCellWidget(r, 0, batch_combo)
         self.table.setCellWidget(r, 1, box_count_spin)
@@ -159,53 +266,29 @@ class MultiBatchSaleDialog(QDialog):
         self.table.setCellWidget(r, 4, net_lbl)
         self.table.setCellWidget(r, 5, rate_spin)
         self.table.setCellWidget(r, 6, amt_lbl)
-        self.table.setCellWidget(r, 7, del_btn)
+        self.table.setCellWidget(r, 7, del_container)
 
-        self._calc_row(r)
+        self._recalculate_all()
 
-    def _remove_row(self, row_idx):
-        if self.table.rowCount() > 1:
-            self.table.removeRow(row_idx)
-            # Rebind del buttons
-            for i in range(self.table.rowCount()):
-                del_btn = self.table.cellWidget(i, 7)
-                if del_btn:
-                    del_btn.clicked.disconnect()
-                    del_btn.clicked.connect(lambda _, idx=i: self._remove_row(idx))
-            self._recalculate_totals()
-        else:
+    def _remove_row(self, row_idx: int):
+        if self.table.rowCount() <= 1:
             QMessageBox.information(self, "Notice", "At least one allocation row is required.")
-
-    def _calc_row(self, r):
-        if r >= self.table.rowCount():
             return
-        gross_spin = self.table.cellWidget(r, 2)
-        box_spin = self.table.cellWidget(r, 3)
-        net_lbl = self.table.cellWidget(r, 4)
-        rate_spin = self.table.cellWidget(r, 5)
-        amt_lbl = self.table.cellWidget(r, 6)
+        if 0 <= row_idx < self.table.rowCount():
+            self.table.removeRow(row_idx)
+            self._recalculate_all()
 
-        if not (gross_spin and box_spin and net_lbl and rate_spin and amt_lbl):
+    def _on_remove_clicked(self):
+        btn = self.sender()
+        if not btn:
             return
+        for r in range(self.table.rowCount()):
+            widget = self.table.cellWidget(r, 7)
+            if widget and (widget == btn or widget.isAncestorOf(btn)):
+                self._remove_row(r)
+                break
 
-        gross = Decimal(str(gross_spin.value()))
-        box = Decimal(str(box_spin.value()))
-        rate = Decimal(str(rate_spin.value()))
-
-        if box > gross:
-            net_lbl.setText("Box > Gross")
-            net_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
-            amt_lbl.setText("₹0.00")
-        else:
-            net = gross - box
-            net_lbl.setText(format_weight(net))
-            net_lbl.setStyleSheet("font-weight: bold; color: #0369a1;")
-            amt = round_money(net * rate)
-            amt_lbl.setText(format_currency(amt))
-
-        self._recalculate_totals()
-
-    def _recalculate_totals(self):
+    def _recalculate_all(self):
         tot_boxes = 0
         tot_gross = Decimal("0.000")
         tot_box = Decimal("0.000")
@@ -213,23 +296,62 @@ class MultiBatchSaleDialog(QDialog):
         tot_amt = Decimal("0.00")
 
         for r in range(self.table.rowCount()):
-            b_cnt = self.table.cellWidget(r, 1).value() if self.table.cellWidget(r, 1) else 0
-            gross = Decimal(str(self.table.cellWidget(r, 2).value())) if self.table.cellWidget(r, 2) else Decimal("0.000")
-            box = Decimal(str(self.table.cellWidget(r, 3).value())) if self.table.cellWidget(r, 3) else Decimal("0.000")
-            rate = Decimal(str(self.table.cellWidget(r, 5).value())) if self.table.cellWidget(r, 5) else Decimal("0.00")
+            box_count_spin = self.table.cellWidget(r, 1)
+            gross_spin = self.table.cellWidget(r, 2)
+            box_spin = self.table.cellWidget(r, 3)
+            net_lbl = self.table.cellWidget(r, 4)
+            rate_spin = self.table.cellWidget(r, 5)
+            amt_lbl = self.table.cellWidget(r, 6)
+
+            if not (box_count_spin and gross_spin and box_spin and net_lbl and rate_spin and amt_lbl):
+                continue
+
+            b_cnt = box_count_spin.value()
+            gross = Decimal(str(gross_spin.value()))
+            box = Decimal(str(box_spin.value()))
+            rate = Decimal(str(rate_spin.value()))
 
             tot_boxes += b_cnt
             tot_gross += gross
             tot_box += box
-            if gross >= box:
+
+            if box > gross:
+                net_lbl.setText("Box > Gross")
+                net_lbl.setStyleSheet("""
+                    QLabel {
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #dc2626;
+                        background-color: #fef2f2;
+                        border: 1px solid #fecaca;
+                        border-radius: 5px;
+                        padding: 4px 6px;
+                    }
+                """)
+                amt_lbl.setText("₹0.00")
+            else:
                 net = gross - box
+                net_lbl.setText(format_weight(net))
+                net_lbl.setStyleSheet("""
+                    QLabel {
+                        font-size: 13px;
+                        font-weight: bold;
+                        color: #0369a1;
+                        background-color: #f0f9ff;
+                        border: 1px solid #bae6fd;
+                        border-radius: 5px;
+                        padding: 4px 8px;
+                    }
+                """)
+                amt = round_money(net * rate)
+                amt_lbl.setText(format_currency(amt))
                 tot_net += net
-                tot_amt += round_money(net * rate)
+                tot_amt += amt
 
         self.total_boxes_lbl.setText(f"Total Boxes: {tot_boxes}")
         self.total_gross_lbl.setText(f"Gross: {format_weight(tot_gross)}")
-        self.total_net_lbl.setText(f"<b>Total Net: {format_weight(tot_net)}</b>")
-        self.total_amt_lbl.setText(f"<b>Total Amount: {format_currency(tot_amt)}</b>")
+        self.total_net_lbl.setText(f"Total Net: {format_weight(tot_net)}")
+        self.total_amt_lbl.setText(f"Total Amount: {format_currency(tot_amt)}")
 
     def _validate_and_accept(self):
         allocs = []
@@ -917,8 +1039,9 @@ class SalesView(QWidget):
                 self.batch_combo.setEnabled(False)
                 self.clear_split_btn.setVisible(True)
 
-                batch_summary = ", ".join([f"{a['batch_number']}:{format_weight(a['net_weight_kg'])}" for a in allocs])
+                batch_summary = ", ".join([f"{a['batch_number']}: {format_weight(a['net_weight_kg'])}" for a in allocs])
                 self.split_btn.setText(f"🔀 Split ({len(allocs)} Batches)")
+                self.split_btn.setToolTip("Multi-Batch Split Allocation:\n" + "\n".join([f"• {a['batch_number']}: Net {format_weight(a['net_weight_kg'])} ({a['box_count']} boxes)" for a in allocs]))
                 self.split_btn.setStyleSheet("padding: 5px 8px; font-size: 11px; background-color: #e0f2fe; color: #0284c7; font-weight: bold;")
                 self._calculate_net_and_amount()
 
@@ -1163,12 +1286,20 @@ class SalesView(QWidget):
                     f"{a.batch.batch_number if a.batch else f'Batch #{a.batch_id}'} ({format_weight(a.net_weight_kg)})"
                     for a in s.allocations
                 ])
+                item_batch = QTableWidgetItem(f"🔀 Split ({len(s.allocations)}): {alloc_str}")
+                item_batch.setToolTip("Multi-Batch Allocations:\n" + "\n".join([
+                    f"• {a.batch.batch_number if a.batch else f'Batch #{a.batch_id}'}: Net {format_weight(a.net_weight_kg)}, Boxes: {getattr(a, 'box_count', 0)}"
+                    for a in s.allocations
+                ]))
+                item_batch.setForeground(Qt.darkBlue)
             elif hasattr(s, "batch") and s.batch:
                 alloc_str = s.batch.batch_number
+                item_batch = QTableWidgetItem(alloc_str)
+                item_batch.setToolTip(f"Single Batch: {alloc_str}")
             else:
-                alloc_str = "-"
+                item_batch = QTableWidgetItem("-")
 
-            self.table.setItem(r, 11, QTableWidgetItem(alloc_str))
+            self.table.setItem(r, 11, item_batch)
 
             # Actions column with Return, Edit, and Delete buttons
             action_widget = QWidget()

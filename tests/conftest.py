@@ -24,12 +24,34 @@ def setup_in_memory_db(monkeypatch):
     """
     Sets up an isolated in-memory SQLite database for every test.
     """
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=False
+    )
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
+    from contextlib import contextmanager
+    @contextmanager
+    def test_session_scope():
+        s = SessionLocal()
+        try:
+            yield s
+            s.commit()
+        except:
+            s.rollback()
+            raise
+        finally:
+            s.close()
+
     monkeypatch.setattr("app.database.connection.get_session_factory", lambda: SessionLocal)
     monkeypatch.setattr("app.database.connection.get_session", lambda: SessionLocal())
+    monkeypatch.setattr("app.database.connection.session_scope", test_session_scope)
+    monkeypatch.setattr("app.services.inventory_service.get_session", lambda: SessionLocal())
+    monkeypatch.setattr("app.services.inventory_service.session_scope", test_session_scope)
     monkeypatch.setattr("PySide6.QtWidgets.QMessageBox.information", lambda *args, **kwargs: 1)
     monkeypatch.setattr("PySide6.QtWidgets.QMessageBox.warning", lambda *args, **kwargs: 1)
     monkeypatch.setattr("PySide6.QtWidgets.QMessageBox.critical", lambda *args, **kwargs: 1)
