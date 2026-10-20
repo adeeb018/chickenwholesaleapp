@@ -74,7 +74,8 @@ class SalesService:
         rate_per_kg: any,
         discount_amount: any = 0.00,
         box_count: int = 0,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        allocations: Optional[list] = None
     ) -> Optional[Sale]:
         with session_scope() as session:
             repo = SalesRepository(session)
@@ -88,7 +89,8 @@ class SalesService:
                 rate_per_kg=rate_per_kg,
                 discount_amount=discount_amount,
                 box_count=box_count,
-                notes=notes
+                notes=notes,
+                allocations=allocations
             )
 
     @staticmethod

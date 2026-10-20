@@ -78,8 +78,10 @@ class CustomerReturnService:
                 box_w = round_weight(line.get("returned_box_weight_kg", 0))
                 net_w = round_weight(line.get("returned_net_weight_kg") or (gross_w - box_w))
                 resale = bool(line.get("resale_eligible", True))
-                reason = line.get("reason", "").strip() or None
-                line_notes = line.get("notes", "").strip() or None
+                raw_reason = line.get("reason") or line.get("return_reason") or ""
+                reason = str(raw_reason).strip() if raw_reason else None
+                raw_notes = line.get("notes") or ""
+                line_notes = str(raw_notes).strip() if raw_notes else None
 
                 if net_w <= 0:
                     raise ValueError("Returned net weight must be greater than 0.")
@@ -276,7 +278,11 @@ class CustomerReturnService:
         try:
             sale = (
                 session.query(Sale)
-                .options(joinedload(Sale.allocations).joinedload(SaleBatchAllocation.batch))
+                .options(
+                    joinedload(Sale.customer),
+                    joinedload(Sale.item),
+                    joinedload(Sale.allocations).joinedload(SaleBatchAllocation.batch)
+                )
                 .filter(Sale.id == sale_id, Sale.is_deleted == False)
                 .first()
             )
@@ -321,6 +327,7 @@ class CustomerReturnService:
                     "rate_per_kg": sale.rate_per_kg
                 })
 
+            session.expunge_all()
             return {
                 "sale": sale,
                 "allocations": allocations_info

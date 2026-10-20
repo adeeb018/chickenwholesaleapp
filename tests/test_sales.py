@@ -342,4 +342,214 @@ def test_multi_batch_sale_dialog_layout_and_data_visibility(qapp):
     assert dlg.table.rowCount() == 1
 
 
+def test_sales_return_quick_dialog_no_detached_error(qapp, monkeypatch):
+    from app.services.purchase_service import PurchaseService
+    from app.services.customer_return_service import CustomerReturnService
+    from app.ui.views.sales_view import QuickSaleReturnDialog
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: QMessageBox.Ok)
+
+    prov = MasterService.create_provider(name="Return Test Prov")
+    cust = MasterService.create_customer(name="Return Test Cust")
+    item = MasterService.get_all_items()[0]
+
+    pur = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=200,
+        box_weight_kg=0,
+        rate_per_kg=120,
+        voucher_number="V-RET-1"
+    )
+
+    sale = SalesService.create_sale(
+        transaction_date=date.today(),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=50,
+        box_weight_kg=0,
+        rate_per_kg=160
+    )
+
+    # 1. Verify get_returnable_sale_info returns detached-safe object with pre-loaded relations
+    info = CustomerReturnService.get_returnable_sale_info(sale.id)
+    assert info is not None
+    s = info["sale"]
+    assert s.customer.name == "Return Test Cust"
+    assert s.item.name == item.name
+
+    # 2. Instantiate QuickSaleReturnDialog directly
+    dlg = QuickSaleReturnDialog(sale_id=sale.id)
+    assert dlg.sale.customer.name == "Return Test Cust"
+    assert dlg.gross_spin.value() > 0 or dlg.gross_spin.value() == 0.0
+
+    # Fill return
+    dlg.gross_spin.setValue(10.0)
+    dlg.box_spin.setValue(0.0)
+    dlg._recalc()
+    assert dlg.credit_spin.value() == 1600.00  # 10 KG * 160
+
+    # Test submit
+    dlg._submit()
+    # Check that return was recorded
+    returns = CustomerReturnService.get_returns(customer_id=cust.id)
+    assert len(returns) >= 1
+    assert returns[0].financial_credit_amount == Decimal("1600.00")
+
+
+def test_multi_batch_split_rate_reflection_and_no_hover_selection(qapp):
+    from app.services.purchase_service import PurchaseService
+    from app.ui.views.sales_view import MultiBatchSaleDialog, SalesView
+    from PySide6.QtWidgets import QAbstractItemView
+
+    prov = MasterService.create_provider(name="Split Rate Prov")
+    cust = MasterService.create_customer(name="Split Rate Cust")
+    item = MasterService.get_all_items()[0]
+
+    p1 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=200,
+        box_weight_kg=0,
+        rate_per_kg=120,
+        voucher_number="V-SR-1"
+    )
+    p2 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=200,
+        box_weight_kg=0,
+        rate_per_kg=125,
+        voucher_number="V-SR-2"
+    )
+
+    dlg = MultiBatchSaleDialog(item_id=item.id, default_rate=Decimal("150.00"))
+
+    # Verify no-selection and hover-safe settings
+    assert dlg.table.selectionMode() == QAbstractItemView.NoSelection
+    assert dlg.table.hasMouseTracking() is False
+    assert dlg.table.viewport().hasMouseTracking() is False
+    assert dlg.table.property("class") == "noHoverTable"
+
+    # Add 2 rows with distinct rates: Row 1 = 50 KG @ 150 (7500), Row 2 = 50 KG @ 170 (8500)
+    dlg.table.cellWidget(0, 1).setValue(2)
+    dlg.table.cellWidget(0, 2).setValue(50.0)
+    dlg.table.cellWidget(0, 3).setValue(0.0)
+    dlg.table.cellWidget(0, 5).setValue(150.00)
+
+    dlg._add_row()
+    # Select second batch for row 1
+    dlg.table.cellWidget(1, 0).setCurrentIndex(1)
+    dlg.table.cellWidget(1, 1).setValue(3)
+    dlg.table.cellWidget(1, 2).setValue(50.0)
+    dlg.table.cellWidget(1, 3).setValue(0.0)
+    dlg.table.cellWidget(1, 5).setValue(170.00)
+
+    dlg._recalculate_all()
+    # Total net: 100 KG, Total amount: 16,000.00, Effective rate: 160.00
+    assert "100.000 KG" in dlg.total_net_lbl.text()
+    assert "16,000.00" in dlg.total_amt_lbl.text()
+    assert "160.00" in dlg.avg_rate_lbl.text()
+
+    dlg._validate_and_accept()
+    allocs = dlg.get_allocations()
+    assert len(allocs) == 2
+    assert allocs[0]["amount"] == Decimal("7500.00")
+    assert allocs[1]["amount"] == Decimal("8500.00")
+
+
+def test_edit_sale_dialog_multi_batch_support(qapp, monkeypatch):
+    from app.services.purchase_service import PurchaseService
+    from app.services.inventory_service import InventoryService
+    from app.ui.views.sales_view import EditSaleDialog
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: QMessageBox.Ok)
+
+    prov = MasterService.create_provider(name="Edit Multi Prov")
+    cust = MasterService.create_customer(name="Edit Multi Cust")
+    item = MasterService.get_all_items()[0]
+
+    p1 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=300,
+        box_weight_kg=0,
+        rate_per_kg=120,
+        voucher_number="V-ED-1"
+    )
+    p2 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=300,
+        box_weight_kg=0,
+        rate_per_kg=125,
+        voucher_number="V-ED-2"
+    )
+
+    batches = InventoryService.get_sellable_batches(item_id=item.id)
+    b1 = batches[0]
+    b2 = batches[1]
+
+    # Create multi-batch sale: 60 KG from b1 @ 150, 40 KG from b2 @ 160
+    allocs = [
+        {"batch_id": b1.id, "box_count": 3, "gross_weight_kg": Decimal("60.000"), "box_weight_kg": Decimal("0.000"), "net_weight_kg": Decimal("60.000"), "rate_per_kg": Decimal("150.00")},
+        {"batch_id": b2.id, "box_count": 2, "gross_weight_kg": Decimal("40.000"), "box_weight_kg": Decimal("0.000"), "net_weight_kg": Decimal("40.000"), "rate_per_kg": Decimal("160.00")}
+    ]
+    sale = SalesService.create_sale(
+        transaction_date=date.today(),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=Decimal("100.000"),
+        box_weight_kg=Decimal("0.000"),
+        rate_per_kg=Decimal("154.00"),
+        box_count=5,
+        allocations=allocs
+    )
+    assert sale.total_amount == Decimal("15400.00")  # 60*150 (9000) + 40*160 (6400) = 15400
+
+    # Open EditSaleDialog
+    fresh_sale = SalesService.get_sale_by_id(sale.id)
+    dlg = EditSaleDialog(fresh_sale)
+
+    # Verify allocations table populated with 2 rows
+    assert dlg.table.rowCount() == 2
+    assert dlg.table.property("class") == "noHoverTable"
+    assert dlg.table.cellWidget(0, 1).value() == 3
+    assert dlg.table.cellWidget(0, 2).value() == 60.0
+    assert dlg.table.cellWidget(0, 5).value() == 150.0
+    assert dlg.table.cellWidget(1, 1).value() == 2
+    assert dlg.table.cellWidget(1, 2).value() == 40.0
+    assert dlg.table.cellWidget(1, 5).value() == 160.0
+
+    # Edit row 0: Change weight to 70 KG, rate to 155
+    dlg.table.cellWidget(0, 2).setValue(70.0)
+    dlg.table.cellWidget(0, 5).setValue(155.0)
+    dlg._recalculate_all()
+
+    # Total net: 110 KG. Gross total = 70*155 (10850) + 40*160 (6400) = 17250.00
+    assert "110.000 KG" in dlg.total_net_lbl.text()
+    assert "17,250.00" in dlg.gross_amt_lbl.text()
+
+    # Save edit
+    dlg._validate_and_save()
+    data = dlg.get_data()
+    updated_sale = SalesService.update_sale(sale_id=sale.id, **data)
+
+    assert updated_sale.net_weight_kg == Decimal("110.000")
+    assert updated_sale.total_amount == Decimal("17250.00")
+    assert len(updated_sale.allocations) == 2
+
+
+
 

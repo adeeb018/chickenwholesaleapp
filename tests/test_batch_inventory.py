@@ -1031,8 +1031,9 @@ def test_23_reports_view_batch_and_returns_tabs(qapp):
     cust = MasterService.create_customer(name="Reports Customer")
     item = MasterService.get_all_items()[0]
 
+    today = date.today()
     pur = PurchaseService.create_purchase(
-        transaction_date=date(2026, 10, 19),
+        transaction_date=today,
         provider_id=provider.id,
         item_id=item.id,
         weight_kg=500,
@@ -1045,7 +1046,7 @@ def test_23_reports_view_batch_and_returns_tabs(qapp):
     b = next(x for x in batches if x.batch_number == "Batch Report-1")
 
     sale = SalesService.create_sale(
-        transaction_date=date(2026, 10, 19),
+        transaction_date=today,
         customer_id=cust.id,
         item_id=item.id,
         gross_weight_kg=100,
@@ -1057,7 +1058,7 @@ def test_23_reports_view_batch_and_returns_tabs(qapp):
     CustomerReturnService.create_customer_return(
         customer_id=cust.id,
         original_sale_id=sale.id,
-        return_date=date(2026, 10, 19),
+        return_date=today,
         lines_data=[{
             "batch_id": b.id,
             "sale_batch_allocation_id": sale.allocations[0].id if sale.allocations else None,

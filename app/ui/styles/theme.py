@@ -352,6 +352,12 @@ QTableWidget::item:hover, QTableView::item:hover {
     background-color: #f8fafc;
 }
 
+QTableWidget.noHoverTable::item:hover, QTableWidget[class="noHoverTable"]::item:hover,
+QTableWidget.noHoverTable::item:selected, QTableWidget[class="noHoverTable"]::item:selected {
+    background-color: transparent;
+    color: inherit;
+}
+
 QHeaderView::section {
     background-color: #f8fafc;
     color: #334155;
