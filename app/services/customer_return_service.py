@@ -144,7 +144,8 @@ class CustomerReturnService:
                             f"Original sold: {sale.net_weight_kg} KG, already returned: {prev_qty} KG, max available: {max_avail} KG."
                         )
 
-                line_amount = round_money(net_w * rate)
+                custom_credit = line.get("financial_credit_amount")
+                line_amount = round_money(custom_credit) if custom_credit is not None else round_money(net_w * rate)
                 total_returned_weight += net_w
                 total_credit_amount += line_amount
 

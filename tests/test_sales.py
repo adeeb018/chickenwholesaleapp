@@ -1,9 +1,11 @@
 import pytest
 from datetime import date
 from decimal import Decimal
+from PySide6.QtCore import Qt
 from app.services.master_service import MasterService
 from app.services.sales_service import SalesService
 from app.services.balance_service import BalanceService
+from app.services.inventory_service import InventoryService
 
 def test_sales_net_weight_and_box_weight_validation():
     cust = MasterService.create_customer(name="Test Customer")
@@ -549,6 +551,193 @@ def test_edit_sale_dialog_multi_batch_support(qapp, monkeypatch):
     assert updated_sale.net_weight_kg == Decimal("110.000")
     assert updated_sale.total_amount == Decimal("17250.00")
     assert len(updated_sale.allocations) == 2
+
+
+def test_quick_sale_return_dialog_sell_rate_editable_and_multibatch(qapp, monkeypatch):
+    from app.services.purchase_service import PurchaseService
+    from app.services.customer_return_service import CustomerReturnService
+    from app.ui.views.sales_view import QuickSaleReturnDialog
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: QMessageBox.Ok)
+
+    prov = MasterService.create_provider(name="Return Rate Prov")
+    cust = MasterService.create_customer(name="Return Rate Cust")
+    item = MasterService.get_all_items()[0]
+
+    p1 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=300,
+        box_weight_kg=0,
+        rate_per_kg=110,
+        voucher_number="V-RR-1"
+    )
+    p2 = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=300,
+        box_weight_kg=0,
+        rate_per_kg=120,
+        voucher_number="V-RR-2"
+    )
+
+    batches = InventoryService.get_sellable_batches(item_id=item.id)
+    b1 = batches[0]
+    b2 = batches[1]
+
+    # Create multi-batch sale: 50 KG from b1 @ 140, 50 KG from b2 @ 165
+    allocs = [
+        {"batch_id": b1.id, "box_count": 2, "gross_weight_kg": Decimal("50.000"), "box_weight_kg": Decimal("0.000"), "net_weight_kg": Decimal("50.000"), "rate_per_kg": Decimal("140.00")},
+        {"batch_id": b2.id, "box_count": 2, "gross_weight_kg": Decimal("50.000"), "box_weight_kg": Decimal("0.000"), "net_weight_kg": Decimal("50.000"), "rate_per_kg": Decimal("165.00")}
+    ]
+    sale = SalesService.create_sale(
+        transaction_date=date.today(),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=Decimal("100.000"),
+        box_weight_kg=Decimal("0.000"),
+        rate_per_kg=Decimal("152.50"),
+        box_count=4,
+        allocations=allocs
+    )
+
+    # Open QuickSaleReturnDialog
+    dlg = QuickSaleReturnDialog(sale_id=sale.id)
+
+    # 1. First allocation selected (b1) - rate should be 140.00
+    assert dlg.alloc_combo.count() == 2
+    assert dlg.rate_spin.value() == 140.00
+
+    # 2. Switch to second allocation (b2) - rate should automatically reflect b2's selling rate 165.00
+    dlg.alloc_combo.setCurrentIndex(1)
+    assert dlg.rate_spin.value() == 165.00
+
+    # 3. Edit rate to 160.00 and set return weight to 10 KG
+    dlg.rate_spin.setValue(160.00)
+    dlg.gross_spin.setValue(10.000)
+    dlg.box_spin.setValue(0.000)
+    dlg._recalc()
+
+    # Credit amount calculated using the edited sell rate: 10 * 160 = 1600.00
+    assert dlg.credit_spin.value() == 1600.00
+
+    # Submit return
+    dlg._submit()
+
+    # Verify return record in DB
+    returns = CustomerReturnService.get_returns(customer_id=cust.id)
+    assert len(returns) >= 1
+    ret = returns[0]
+    assert ret.financial_credit_amount == Decimal("1600.00")
+    assert ret.lines[0].rate_per_kg == Decimal("160.00")
+    assert ret.lines[0].financial_amount == Decimal("1600.00")
+    assert ret.lines[0].batch_id == b2.id
+
+
+def test_customer_returns_view_sell_rate_editable_and_multibatch(qapp, monkeypatch):
+    from app.services.purchase_service import PurchaseService
+    from app.services.customer_return_service import CustomerReturnService
+    from app.ui.views.customer_returns_view import CustomerReturnsView
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: QMessageBox.Ok)
+
+    prov = MasterService.create_provider(name="CR View Prov")
+    cust = MasterService.create_customer(name="CR View Cust")
+    item = MasterService.get_all_items()[0]
+
+    pur = PurchaseService.create_purchase(
+        transaction_date=date.today(),
+        provider_id=prov.id,
+        item_id=item.id,
+        gross_weight_kg=200,
+        box_weight_kg=0,
+        rate_per_kg=120,
+        voucher_number="V-CRV-1"
+    )
+    b = InventoryService.get_sellable_batches(item_id=item.id)[0]
+
+    sale = SalesService.create_sale(
+        transaction_date=date.today(),
+        customer_id=cust.id,
+        item_id=item.id,
+        gross_weight_kg=50,
+        box_weight_kg=0,
+        rate_per_kg=180,
+        batch_id=b.id
+    )
+
+    view = CustomerReturnsView()
+    view.load_customers()
+
+    # Select customer and sale
+    c_idx = view.customer_combo.findData(cust.id)
+    view.customer_combo.setCurrentIndex(c_idx)
+
+    s_idx = view.sale_combo.findData(sale.id)
+    view.sale_combo.setCurrentIndex(s_idx)
+
+    # Initial rate should be the sale rate (180.00)
+    assert view.rate_spin.value() == 180.00
+
+    # Edit rate to 175.00
+    view.rate_spin.setValue(175.00)
+    view.gross_spin.setValue(10.000)
+    view.box_spin.setValue(0.000)
+    view._recalc_math()
+
+    # Credit should be 10 * 175 = 1750.00
+    assert "1,750.00" in view.credit_label.text()
+
+    # Save return
+    view._save_return()
+
+    # Verify table has 14 columns including Rate
+    assert view.table.columnCount() == 14
+    assert view.table.rowCount() >= 1
+    # Check Rate column (index 10) and Credit column (index 11)
+    assert "175.00" in view.table.item(0, 10).text()
+    assert "1,750.00" in view.table.item(0, 11).text()
+
+
+def test_click_only_focus_filter_blocks_hover_cursor_shift(qapp):
+    from PySide6.QtGui import QFocusEvent
+    from app.ui.views.sales_view import ClickOnlyFocusFilter, NoScrollDoubleSpinBox
+    from PySide6.QtWidgets import QDialog, QVBoxLayout
+
+    dlg = QDialog()
+    layout = QVBoxLayout(dlg)
+    s1 = NoScrollDoubleSpinBox()
+    s2 = NoScrollDoubleSpinBox()
+    layout.addWidget(s1)
+    layout.addWidget(s2)
+
+    filt = ClickOnlyFocusFilter(dlg)
+    s2.installEventFilter(filt)
+    s2.lineEdit().installEventFilter(filt)
+
+    # WheelFocus must be disabled in favor of ClickFocus
+    assert s1.focusPolicy() == Qt.ClickFocus
+    assert s2.focusPolicy() == Qt.ClickFocus
+    assert s1.lineEdit().focusPolicy() == Qt.ClickFocus
+    assert s2.lineEdit().focusPolicy() == Qt.ClickFocus
+
+    # Synthetic non-click focus event (e.g. OtherFocusReason from hover/move) must be blocked
+    ev = QFocusEvent(QFocusEvent.FocusIn, Qt.OtherFocusReason)
+    blocked = filt.eventFilter(s2, ev)
+    assert blocked is True  # blocked!
+
+    # Mouse click focus reason must be allowed
+    ev_click = QFocusEvent(QFocusEvent.FocusIn, Qt.MouseFocusReason)
+    allowed = filt.eventFilter(s2, ev_click)
+    assert allowed is False  # not blocked, allowed!
 
 
 

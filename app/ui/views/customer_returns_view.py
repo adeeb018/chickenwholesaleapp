@@ -78,6 +78,13 @@ class CustomerReturnsView(QWidget):
         self.net_label = QLabel("0.000 KG")
         self.net_label.setStyleSheet("font-weight: bold; color: #0369a1; font-size: 13px;")
 
+        self.rate_spin = QDoubleSpinBox()
+        self.rate_spin.setRange(0.00, 999999.00)
+        self.rate_spin.setDecimals(2)
+        self.rate_spin.setPrefix("₹ ")
+        self.rate_spin.setAlignment(Qt.AlignRight)
+        self.rate_spin.valueChanged.connect(self._recalc_math)
+
         self.credit_label = QLabel("₹0.00")
         self.credit_label.setStyleSheet("font-weight: bold; color: #15803d; font-size: 14px;")
 
@@ -128,15 +135,18 @@ class CustomerReturnsView(QWidget):
         form_layout.addWidget(self.box_spin, 2, 1)
         form_layout.addWidget(QLabel("<b>Returned Net:</b>"), 2, 2)
         form_layout.addWidget(self.net_label, 2, 3)
-        form_layout.addWidget(QLabel("<b>Credit Amount:</b>"), 2, 4)
-        form_layout.addWidget(self.credit_label, 2, 5)
+        form_layout.addWidget(QLabel("<b>Sell / Return Rate:</b>"), 2, 4)
+        form_layout.addWidget(self.rate_spin, 2, 5)
 
-        form_layout.addWidget(QLabel("Reason:"), 3, 0)
-        form_layout.addWidget(self.reason_combo, 3, 1)
-        form_layout.addWidget(QLabel("Notes:"), 3, 2)
-        form_layout.addWidget(self.notes_edit, 3, 3)
-        form_layout.addWidget(self.resale_check, 3, 4)
-        form_layout.addWidget(save_btn, 3, 5)
+        form_layout.addWidget(QLabel("<b>Credit Amount:</b>"), 3, 0)
+        form_layout.addWidget(self.credit_label, 3, 1)
+        form_layout.addWidget(QLabel("Reason:"), 3, 2)
+        form_layout.addWidget(self.reason_combo, 3, 3)
+        form_layout.addWidget(QLabel("Notes:"), 3, 4)
+        form_layout.addWidget(self.notes_edit, 3, 5)
+
+        form_layout.addWidget(self.resale_check, 4, 0, 1, 4)
+        form_layout.addWidget(save_btn, 4, 4, 1, 2)
 
         layout.addWidget(form_frame)
 
@@ -154,21 +164,21 @@ class CustomerReturnsView(QWidget):
 
         layout.addLayout(filter_layout)
 
-        # Table - 13 columns displaying Boxes, Gross, Box Wt, Net, Credit, Actions
-        self.table = QTableWidget(0, 13)
+        # Table - 14 columns displaying Boxes, Gross, Box Wt, Net, Resale, Rate, Credit, Actions
+        self.table = QTableWidget(0, 14)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "Return #", "Date", "Customer", "Sale Ref", "Batch Name",
             "Boxes", "Gross (KG)", "Box Wt (KG)", "Net (KG)",
-            "Resale?", "Credit (₹)", "Reason & Notes", "Actions"
+            "Resale?", "Rate (₹/KG)", "Credit (₹)", "Reason & Notes", "Actions"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setMinimumSectionSize(95)
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(12, QHeaderView.Fixed)
-        self.table.setColumnWidth(12, 120)
+        header.setSectionResizeMode(13, QHeaderView.Fixed)
+        self.table.setColumnWidth(13, 120)
         self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
         enable_table_copy_and_tooltips(self.table)
@@ -222,7 +232,7 @@ class CustomerReturnsView(QWidget):
             info = CustomerReturnService.get_returnable_sale_info(s_id)
             self.current_sale_info = info
             for alloc in info.get("allocations", []):
-                txt = f"{alloc['batch_number']} (Sold: {format_weight(alloc['sold_net_kg'])}, Avail: {format_weight(alloc['returnable_kg'])})"
+                txt = f"{alloc['batch_number']} | Sold Rate: {format_currency(alloc['rate_per_kg'])} | Returnable: {format_weight(alloc['returnable_kg'])}"
                 self.alloc_combo.addItem(txt, alloc)
         else:
             self.current_sale_info = None
@@ -233,16 +243,27 @@ class CustomerReturnsView(QWidget):
         alloc_data = self.alloc_combo.currentData()
         if alloc_data:
             self.current_rate = alloc_data["rate_per_kg"]
+            self.rate_spin.blockSignals(True)
+            self.rate_spin.setValue(float(alloc_data["rate_per_kg"]))
+            self.rate_spin.blockSignals(False)
             self.gross_spin.setMaximum(float(alloc_data["returnable_kg"]) * 2)
         elif self.current_sale_info and self.current_sale_info.get("sale"):
-            self.current_rate = self.current_sale_info["sale"].rate_per_kg
+            sale_rate = self.current_sale_info["sale"].rate_per_kg
+            self.current_rate = sale_rate
+            self.rate_spin.blockSignals(True)
+            self.rate_spin.setValue(float(sale_rate))
+            self.rate_spin.blockSignals(False)
         else:
             self.current_rate = Decimal("0.00")
+            self.rate_spin.blockSignals(True)
+            self.rate_spin.setValue(0.0)
+            self.rate_spin.blockSignals(False)
         self._recalc_math()
 
     def _recalc_math(self):
         gross = Decimal(str(self.gross_spin.value()))
         box = Decimal(str(self.box_spin.value()))
+        rate = Decimal(str(self.rate_spin.value()))
         if box > gross:
             self.net_label.setText("INVALID (Box > Gross)")
             self.credit_label.setText("₹0.00")
@@ -250,7 +271,7 @@ class CustomerReturnsView(QWidget):
 
         net = round_weight(gross - box)
         self.net_label.setText(format_weight(net))
-        credit = round_money(net * self.current_rate)
+        credit = round_money(net * rate)
         self.credit_label.setText(format_currency(credit))
 
     def _save_return(self):
@@ -306,6 +327,8 @@ class CustomerReturnsView(QWidget):
         notes = self.notes_edit.text().strip()
 
         alloc_id = alloc_data.get("allocation_id") if alloc_data else None
+        rate = Decimal(str(self.rate_spin.value()))
+        credit = round_money(net * rate)
 
         line_payload = {
             "sale_batch_allocation_id": alloc_id,
@@ -314,7 +337,8 @@ class CustomerReturnsView(QWidget):
             "returned_gross_weight_kg": gross,
             "returned_box_weight_kg": box,
             "returned_net_weight_kg": net,
-            "rate_per_kg": self.current_rate,
+            "rate_per_kg": rate,
+            "financial_credit_amount": credit,
             "resale_eligible": resale,
             "reason": reason,
             "notes": notes
@@ -367,9 +391,10 @@ class CustomerReturnsView(QWidget):
                 resale_col = Qt.darkGreen if line.resale_eligible else Qt.red
                 self.table.setItem(r, 9, create_table_item(resale_str, alignment=Qt.AlignCenter, color=resale_col))
 
-                self.table.setItem(r, 10, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 10, create_table_item(format_currency(line.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
+                self.table.setItem(r, 11, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
                 reason_str = f"{line.reason or ''} {f'({cr.notes})' if cr.notes else ''}".strip()
-                self.table.setItem(r, 11, create_table_item(reason_str or "-"))
+                self.table.setItem(r, 12, create_table_item(reason_str or "-"))
 
                 # Attractive action button
                 action_widget = QWidget()
@@ -383,7 +408,7 @@ class CustomerReturnsView(QWidget):
                 del_btn.clicked.connect(lambda _, ret_id=cr.id: self._delete_return(ret_id))
                 act_box.addWidget(del_btn)
 
-                self.table.setCellWidget(r, 12, action_widget)
+                self.table.setCellWidget(r, 13, action_widget)
 
     def _delete_return(self, return_id: int):
         reply = QMessageBox.question(

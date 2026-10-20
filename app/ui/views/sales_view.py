@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit, QCheckBox, QAbstractItemView
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QObject, QEvent
 from app.services.master_service import MasterService
 from app.services.sales_service import SalesService
 from app.services.setting_service import SettingService
@@ -17,17 +17,71 @@ from app.ui.components.date_range_picker import DateRangePicker
 from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 from app.utils.decimal_utils import format_currency, format_weight, round_weight, round_money, to_decimal
 
+class ClickOnlyFocusFilter(QObject):
+    """
+    Event filter ensuring that inputs only receive focus when explicitly clicked by the user
+    or navigated via Tab/Backtab, preventing mouse hover, mouse move, or wheel jitter from
+    stealing the typing cursor.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._mouse_pressed = False
+
+    def eventFilter(self, obj, event):
+        etype = event.type()
+        if etype == QEvent.MouseButtonPress:
+            self._mouse_pressed = True
+        elif etype == QEvent.MouseButtonRelease:
+            self._mouse_pressed = False
+        elif etype == QEvent.FocusIn:
+            reason = event.reason()
+            if reason in (Qt.TabFocusReason, Qt.BacktabFocusReason, Qt.MouseFocusReason) or self._mouse_pressed:
+                self._mouse_pressed = False
+                return False
+            # Block focus transitions triggered by hover, move, or window activation
+            event.ignore()
+            return True
+        return False
+
 class NoScrollComboBox(QComboBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.ClickFocus)
+        self.setMouseTracking(False)
+        self.setAttribute(Qt.WA_Hover, False)
+
     def wheelEvent(self, e):
-        e.ignore()
+        e.accept()
 
 class NoScrollDoubleSpinBox(QDoubleSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.ClickFocus)
+        self.setMouseTracking(False)
+        self.setAttribute(Qt.WA_Hover, False)
+        le = self.lineEdit()
+        if le:
+            le.setFocusPolicy(Qt.ClickFocus)
+            le.setMouseTracking(False)
+            le.setAttribute(Qt.WA_Hover, False)
+
     def wheelEvent(self, e):
-        e.ignore()
+        e.accept()
 
 class NoScrollSpinBox(QSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.ClickFocus)
+        self.setMouseTracking(False)
+        self.setAttribute(Qt.WA_Hover, False)
+        le = self.lineEdit()
+        if le:
+            le.setFocusPolicy(Qt.ClickFocus)
+            le.setMouseTracking(False)
+            le.setAttribute(Qt.WA_Hover, False)
+
     def wheelEvent(self, e):
-        e.ignore()
+        e.accept()
 
 class MultiBatchSaleDialog(QDialog):
     """
@@ -56,12 +110,20 @@ class MultiBatchSaleDialog(QDialog):
         layout.addWidget(info_lbl)
 
         # Allocations Table
+        self.focus_filter = ClickOnlyFocusFilter(self)
+        self.installEventFilter(self.focus_filter)
+
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setFocusPolicy(Qt.NoFocus)
         self.table.setMouseTracking(False)
         self.table.viewport().setMouseTracking(False)
+        self.table.setAttribute(Qt.WA_Hover, False)
+        self.table.viewport().setAttribute(Qt.WA_Hover, False)
+        self.table.installEventFilter(self.focus_filter)
+        self.table.viewport().installEventFilter(self.focus_filter)
         self.table.setProperty("class", "noHoverTable")
         self.table.setHorizontalHeaderLabels([
             "Batch Name / Inventory Source", "Boxes", "Gross Wt (KG)", "Box Wt (KG)", "Net Wt (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
@@ -287,6 +349,11 @@ class MultiBatchSaleDialog(QDialog):
         rate_spin.valueChanged.connect(self._recalculate_all)
         box_count_spin.valueChanged.connect(self._recalculate_all)
 
+        for w in (batch_combo, box_count_spin, gross_spin, box_spin, rate_spin):
+            w.installEventFilter(self.focus_filter)
+            if hasattr(w, "lineEdit") and w.lineEdit():
+                w.lineEdit().installEventFilter(self.focus_filter)
+
         self.table.setCellWidget(r, 0, batch_combo)
         self.table.setCellWidget(r, 1, box_count_spin)
         self.table.setCellWidget(r, 2, gross_spin)
@@ -494,8 +561,9 @@ class QuickSaleReturnDialog(QDialog):
         # Allocation Selector (if multiple)
         self.alloc_combo = QComboBox()
         for a in self.allocations:
+            rate_val = a.get("rate_per_kg", self.sale.rate_per_kg)
             self.alloc_combo.addItem(
-                f"{a['batch_number']} (Returnable: {format_weight(a['returnable_kg'])})",
+                f"{a['batch_number']} | Sold Rate: {format_currency(rate_val)} | Returnable: {format_weight(a['returnable_kg'])}",
                 a
             )
         layout.addRow("Target Batch / Allocation:", self.alloc_combo)
@@ -520,6 +588,14 @@ class QuickSaleReturnDialog(QDialog):
         self.net_lbl = QLabel("0.000 KG")
         self.net_lbl.setStyleSheet("font-weight: bold; color: #0369a1;")
         layout.addRow("Returned Net (AUTO):", self.net_lbl)
+
+        self.rate_spin = QDoubleSpinBox()
+        self.rate_spin.setRange(0.00, 999999.00)
+        self.rate_spin.setDecimals(2)
+        self.rate_spin.setPrefix("₹ ")
+        init_rate = self.allocations[0]["rate_per_kg"] if self.allocations else self.sale.rate_per_kg
+        self.rate_spin.setValue(float(init_rate))
+        layout.addRow("Return / Sell Rate (₹/KG):", self.rate_spin)
 
         self.resale_check = QCheckBox("Accepted for Resale (Restores stock to batch)")
         self.resale_check.setChecked(True)
@@ -549,7 +625,8 @@ class QuickSaleReturnDialog(QDialog):
         # Connections
         self.gross_spin.valueChanged.connect(self._recalc)
         self.box_spin.valueChanged.connect(self._recalc)
-        self.alloc_combo.currentIndexChanged.connect(self._recalc)
+        self.rate_spin.valueChanged.connect(self._recalc)
+        self.alloc_combo.currentIndexChanged.connect(self._on_alloc_changed)
 
         # Buttons
         btn_box = QHBoxLayout()
@@ -567,6 +644,14 @@ class QuickSaleReturnDialog(QDialog):
 
         self._recalc()
 
+    def _on_alloc_changed(self):
+        alloc_data = self.alloc_combo.currentData()
+        rate = alloc_data["rate_per_kg"] if alloc_data else self.sale.rate_per_kg
+        self.rate_spin.blockSignals(True)
+        self.rate_spin.setValue(float(rate))
+        self.rate_spin.blockSignals(False)
+        self._recalc()
+
     def _recalc(self):
         gross = Decimal(str(self.gross_spin.value()))
         box = Decimal(str(self.box_spin.value()))
@@ -580,8 +665,7 @@ class QuickSaleReturnDialog(QDialog):
         self.net_lbl.setText(format_weight(net))
         self.net_lbl.setStyleSheet("font-weight: bold; color: #0369a1;")
 
-        alloc_data = self.alloc_combo.currentData()
-        rate = alloc_data["rate_per_kg"] if alloc_data else self.sale.rate_per_kg
+        rate = Decimal(str(self.rate_spin.value()))
         credit = round_money(net * rate)
         self.credit_spin.setValue(float(credit))
 
@@ -610,6 +694,7 @@ class QuickSaleReturnDialog(QDialog):
         qd = self.date_edit.date()
         ret_date = date(qd.year(), qd.month(), qd.day())
         credit_amt = Decimal(str(self.credit_spin.value()))
+        ret_rate = Decimal(str(self.rate_spin.value()))
 
         lines_data = [{
             "sale_batch_allocation_id": alloc_data["allocation_id"] if alloc_data else None,
@@ -617,6 +702,7 @@ class QuickSaleReturnDialog(QDialog):
             "returned_gross_weight_kg": gross,
             "returned_box_weight_kg": box,
             "box_count": self.box_count_spin.value(),
+            "rate_per_kg": ret_rate,
             "resale_eligible": self.resale_check.isChecked(),
             "return_reason": self.reason_combo.currentText(),
             "financial_credit_amount": credit_amt,
@@ -732,12 +818,20 @@ class EditSaleDialog(QDialog):
         main_layout.addWidget(sec_header)
 
         # Allocations Table
+        self.focus_filter = ClickOnlyFocusFilter(self)
+        self.installEventFilter(self.focus_filter)
+
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setFocusPolicy(Qt.NoFocus)
         self.table.setMouseTracking(False)
         self.table.viewport().setMouseTracking(False)
+        self.table.setAttribute(Qt.WA_Hover, False)
+        self.table.viewport().setAttribute(Qt.WA_Hover, False)
+        self.table.installEventFilter(self.focus_filter)
+        self.table.viewport().installEventFilter(self.focus_filter)
         self.table.setProperty("class", "noHoverTable")
         self.table.setHorizontalHeaderLabels([
             "Batch Name / Source", "Boxes", "Gross Wt (KG)", "Box Wt (KG)", "Net Wt (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
@@ -1074,6 +1168,11 @@ class EditSaleDialog(QDialog):
         box_spin.valueChanged.connect(self._recalculate_all)
         rate_spin.valueChanged.connect(self._recalculate_all)
         box_count_spin.valueChanged.connect(self._recalculate_all)
+
+        for w in (batch_combo, box_count_spin, gross_spin, box_spin, rate_spin):
+            w.installEventFilter(self.focus_filter)
+            if hasattr(w, "lineEdit") and w.lineEdit():
+                w.lineEdit().installEventFilter(self.focus_filter)
 
         self.table.setCellWidget(r, 0, batch_combo)
         self.table.setCellWidget(r, 1, box_count_spin)
