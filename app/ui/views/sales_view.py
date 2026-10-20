@@ -3,7 +3,8 @@ from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QComboBox,
     QDoubleSpinBox, QSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit, QCheckBox, QAbstractItemView
+    QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit, QCheckBox, QAbstractItemView,
+    QAbstractSpinBox
 )
 from PySide6.QtCore import Qt, QDate, QObject, QEvent
 from app.services.master_service import MasterService
@@ -616,7 +617,13 @@ class QuickSaleReturnDialog(QDialog):
         self.credit_spin.setRange(0.00, 999999.00)
         self.credit_spin.setDecimals(2)
         self.credit_spin.setPrefix("₹ ")
-        layout.addRow("Financial Credit (₹):", self.credit_spin)
+        self.credit_spin.setReadOnly(True)
+        self.credit_spin.setFocusPolicy(Qt.NoFocus)
+        self.credit_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.credit_spin.setStyleSheet(
+            "QDoubleSpinBox { background-color: #f1f5f9; color: #0f172a; font-weight: bold; border: 1px solid #cbd5e1; }"
+        )
+        layout.addRow("Financial Credit (AUTO) (₹):", self.credit_spin)
 
         self.notes_edit = QLineEdit()
         self.notes_edit.setPlaceholderText("Optional remarks")
@@ -693,8 +700,8 @@ class QuickSaleReturnDialog(QDialog):
 
         qd = self.date_edit.date()
         ret_date = date(qd.year(), qd.month(), qd.day())
-        credit_amt = Decimal(str(self.credit_spin.value()))
         ret_rate = Decimal(str(self.rate_spin.value()))
+        credit_amt = round_money(net * ret_rate)
 
         lines_data = [{
             "sale_batch_allocation_id": alloc_data["allocation_id"] if alloc_data else None,

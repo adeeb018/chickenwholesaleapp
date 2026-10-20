@@ -38,3 +38,12 @@ def get_database_uri(db_path: Path | None = None) -> str:
     """Returns SQLite database URI string for SQLAlchemy."""
     target_path = db_path or get_db_path()
     return f"sqlite:///{target_path.as_posix()}"
+
+def get_audit_log_path() -> Path:
+    """Returns absolute path to the persistent database audit log file."""
+    env_log = os.getenv("CHICKEN_WHOLESALE_AUDIT_LOG_PATH")
+    if env_log:
+        path = Path(env_log)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    return get_user_data_dir() / "database_operations.log"

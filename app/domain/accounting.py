@@ -202,6 +202,17 @@ def generate_customer_ledger(
             total_returns_amount += amt
             total_returns_weight += net_w
 
+            ret_rate = Decimal("0.00")
+            if hasattr(r, "lines") and r.lines:
+                total_line_wt = sum(line.returned_net_weight_kg for line in r.lines)
+                if total_line_wt and total_line_wt > 0:
+                    total_val = sum(line.returned_net_weight_kg * (line.rate_per_kg or Decimal("0.00")) for line in r.lines)
+                    ret_rate = round_money(total_val / total_line_wt)
+                elif r.lines[0].rate_per_kg is not None:
+                    ret_rate = round_money(r.lines[0].rate_per_kg)
+            elif net_w > 0 and amt > 0:
+                ret_rate = round_money(amt / net_w)
+
             desc = f"Customer Return #{r.return_number} ({format_weight(net_w)})"
             if r.notes:
                 desc += f" [{r.notes}]"
@@ -215,7 +226,8 @@ def generate_customer_ledger(
                     debit=Decimal("0.00"),
                     credit=amt,
                     running_balance=round_money(running_balance),
-                    net_weight_kg=net_w
+                    net_weight_kg=net_w,
+                    rate_per_kg=ret_rate
                 )
             )
         elif ev["type"] == "PAYMENT_RECEIVED":

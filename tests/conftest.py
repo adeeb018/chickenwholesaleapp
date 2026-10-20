@@ -9,8 +9,10 @@ from app.database.repositories.provider_repository import ProviderRepository
 import os
 from PySide6.QtWidgets import QApplication
 from app.database.repositories.item_repository import ItemRepository
+from app.database.audit_logger import AuditLogger
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+AuditLogger.attach_listeners()
 
 @pytest.fixture(scope="session")
 def qapp():

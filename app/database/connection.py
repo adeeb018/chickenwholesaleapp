@@ -115,6 +115,8 @@ def init_db(uri: str | None = None) -> None:
     Base.metadata.create_all(bind=_engine)
     _migrate_schema(_engine)
     seed_default_items()
+    from app.database.audit_logger import AuditLogger
+    AuditLogger.attach_listeners()
 
 def get_engine():
     global _engine

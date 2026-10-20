@@ -134,6 +134,10 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView()
         self.settings_view.data_cleared.connect(self._on_data_cleared)
 
+        self.providers_view.providers_changed.connect(self._on_providers_changed)
+        self.customers_view.customers_changed.connect(self._on_customers_changed)
+        self.items_view.items_changed.connect(self._on_items_changed)
+
         self.stacked.addWidget(self.dashboard_view)          # 0
         self.stacked.addWidget(self.purchases_view)          # 1
         self.stacked.addWidget(self.sales_view)              # 2
@@ -190,6 +194,22 @@ class MainWindow(QMainWindow):
                 w.refresh_table()
             elif hasattr(w, "load_combos"):
                 w.load_combos()
+
+    def _on_providers_changed(self):
+        self.purchases_view.load_combos()
+        self.provider_payments_view.load_combos()
+        self.reports_view.refresh_data()
+
+    def _on_customers_changed(self):
+        self.sales_view.load_combos()
+        self.returns_view.load_combos()
+        self.customer_payments_view.load_combos()
+        self.reports_view.refresh_data()
+
+    def _on_items_changed(self):
+        self.purchases_view.load_combos()
+        self.sales_view.load_combos()
+        self.reports_view.refresh_data()
 
     def _open_voucher_search(self):
         dlg = VoucherSearchDialog(parent=self)

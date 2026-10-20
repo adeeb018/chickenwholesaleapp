@@ -2,12 +2,15 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QFileDialog,
     QMessageBox, QDoubleSpinBox, QDialog, QLineEdit, QCheckBox, QFormLayout,
-    QScrollArea
+    QScrollArea, QInputDialog
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtGui import QDesktopServices
 from app.config.settings import get_db_path
 from app.services.backup_service import BackupService
 from app.services.setting_service import SettingService
+from app.database.audit_logger import AuditLogger
+from app.ui.components.audit_log_dialog import AuditLogDialog
 from app.utils.decimal_utils import format_currency
 
 class ClearAllDataDialog(QDialog):
@@ -332,7 +335,50 @@ class SettingsView(QWidget):
         self.security_layout.addWidget(self.change_pwd_box)
         layout.addWidget(self.security_frame)
 
-        # 5. Danger Zone — Clear All Data Frame
+        # 5. Database Audit Logs Section
+        audit_frame = QFrame()
+        audit_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 14px;
+            }
+        """)
+        audit_box = QVBoxLayout(audit_frame)
+        audit_box.setSpacing(10)
+
+        audit_title = QLabel("📋 Database Audit Logs & Activity Trail")
+        audit_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #0f172a;")
+        audit_box.addWidget(audit_title)
+
+        audit_desc = QLabel(
+            "All operations on the database (INSERT, UPDATE, SOFT_DELETE, DELETE) are automatically recorded "
+            "with precise timestamps, entity models, and changed details. Protected by Admin Password."
+        )
+        audit_desc.setWordWrap(True)
+        audit_desc.setStyleSheet("color: #475569; font-size: 13px;")
+        audit_box.addWidget(audit_desc)
+
+        audit_btn_row = QHBoxLayout()
+        view_logs_btn = QPushButton("🔐 View Database Audit Logs")
+        view_logs_btn.setProperty("class", "primaryBtn")
+        view_logs_btn.setStyleSheet("padding: 8px 16px; font-weight: bold;")
+        view_logs_btn.clicked.connect(self._open_audit_logs)
+
+        open_log_file_btn = QPushButton("📂 Open Log File")
+        open_log_file_btn.setProperty("class", "secondaryBtn")
+        open_log_file_btn.setStyleSheet("padding: 8px 16px;")
+        open_log_file_btn.clicked.connect(self._open_audit_log_file)
+
+        audit_btn_row.addWidget(view_logs_btn)
+        audit_btn_row.addWidget(open_log_file_btn)
+        audit_btn_row.addStretch()
+        audit_box.addLayout(audit_btn_row)
+
+        layout.addWidget(audit_frame)
+
+        # 6. Danger Zone — Clear All Data Frame
         danger_frame = QFrame()
         danger_frame.setStyleSheet("""
             QFrame {
@@ -506,3 +552,43 @@ class SettingsView(QWidget):
             )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save chicken rate: {str(e)}")
+
+    def _open_audit_logs(self):
+        if SettingService.is_admin_password_set():
+            pwd, ok = QInputDialog.getText(
+                self, "Admin Password Required",
+                "Enter Admin Password to view database audit logs:",
+                QLineEdit.Password
+            )
+            if not ok:
+                return
+            if not SettingService.verify_admin_password(pwd):
+                QMessageBox.critical(self, "Access Denied", "Incorrect admin password. Cannot view audit logs.")
+                return
+
+        dlg = AuditLogDialog(parent=self)
+        dlg.exec()
+
+    def _open_audit_log_file(self):
+        if SettingService.is_admin_password_set():
+            pwd, ok = QInputDialog.getText(
+                self, "Admin Password Required",
+                "Enter Admin Password to open database audit log file:",
+                QLineEdit.Password
+            )
+            if not ok:
+                return
+            if not SettingService.verify_admin_password(pwd):
+                QMessageBox.critical(self, "Access Denied", "Incorrect admin password.")
+                return
+
+        log_path = AuditLogger.get_log_file_path()
+        if not log_path.exists():
+            QMessageBox.information(self, "No Log File", "No database operations have been logged yet.")
+            return
+
+        try:
+            url = QUrl.fromLocalFile(str(log_path.resolve()))
+            QDesktopServices.openUrl(url)
+        except Exception as e:
+            QMessageBox.warning(self, "Could Not Open File", f"Unable to open log file automatically: {e}")

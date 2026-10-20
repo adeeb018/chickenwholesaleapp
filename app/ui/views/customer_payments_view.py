@@ -117,10 +117,21 @@ class CustomerPaymentsView(QWidget):
         self.load_combos()
         self.refresh_table()
 
+    def on_view_activated(self):
+        self.load_combos()
+        self.refresh_table()
+
     def load_combos(self):
+        curr_c = self.customer_combo.currentData()
+        self.customer_combo.blockSignals(True)
         self.customer_combo.clear()
         for c in MasterService.get_all_customers():
             self.customer_combo.addItem(c.name, c.id)
+        if curr_c is not None:
+            idx = self.customer_combo.findData(curr_c)
+            if idx >= 0:
+                self.customer_combo.setCurrentIndex(idx)
+        self.customer_combo.blockSignals(False)
 
     def _on_mode_changed(self):
         mode = self.mode_combo.currentText()

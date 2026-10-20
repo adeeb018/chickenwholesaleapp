@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QDialog, QFormLayout, QDoubleSpinBox, QDateEdit,
     QMessageBox, QTextEdit
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
 from app.services.statement_print_service import StatementPrintService
@@ -162,6 +162,8 @@ class CustomersView(QWidget):
     """
     Customer Master Screen with Add, Edit, Delete, and Ledger Statement views.
     """
+    customers_changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -281,6 +283,7 @@ class CustomersView(QWidget):
                 return
             MasterService.create_customer(**data)
             self.refresh_table()
+            self.customers_changed.emit()
 
     def _edit_customer(self, customer):
         dlg = CustomerDialog(customer=customer, parent=self)
@@ -291,6 +294,7 @@ class CustomersView(QWidget):
                 return
             MasterService.update_customer(customer_id=customer.id, **data)
             self.refresh_table()
+            self.customers_changed.emit()
 
     def _delete_customer(self, customer):
         reply = QMessageBox.question(
@@ -301,6 +305,7 @@ class CustomersView(QWidget):
         if reply == QMessageBox.Yes:
             MasterService.soft_delete_customer(customer.id)
             self.refresh_table()
+            self.customers_changed.emit()
 
     def _view_ledger(self, customer_id: int):
         dlg = CustomerLedgerDialog(customer_id=customer_id, parent=self)

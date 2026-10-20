@@ -44,7 +44,7 @@ class StatementPrintService:
             d_str = entry.entry_date.strftime("%d/%m/%Y")
             desc = entry.description or "-"
             w_str = format_weight(entry.net_weight_kg) if entry.net_weight_kg else "-"
-            r_str = format_currency(entry.rate_per_kg) if entry.rate_per_kg else "-"
+            r_str = format_currency(entry.rate_per_kg) if (entry.rate_per_kg and entry.rate_per_kg > 0) else "-"
 
             if entry.transaction_type == "SALE" or entry.debit > 0:
                 disc = entry.discount_amount or Decimal("0.00")

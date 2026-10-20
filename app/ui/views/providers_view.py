@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QDialog, QFormLayout, QDoubleSpinBox, QDateEdit,
     QMessageBox, QTextEdit
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from app.services.master_service import MasterService
 from app.services.balance_service import BalanceService
 from app.services.statement_print_service import StatementPrintService
@@ -160,6 +160,8 @@ class ProvidersView(QWidget):
     """
     Provider Master Screen with Add, Edit, Delete, and Ledger Statement views.
     """
+    providers_changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -262,6 +264,7 @@ class ProvidersView(QWidget):
                 return
             MasterService.create_provider(**data)
             self.refresh_table()
+            self.providers_changed.emit()
 
     def _edit_provider(self, provider):
         dlg = ProviderDialog(provider=provider, parent=self)
@@ -272,6 +275,7 @@ class ProvidersView(QWidget):
                 return
             MasterService.update_provider(provider_id=provider.id, **data)
             self.refresh_table()
+            self.providers_changed.emit()
 
     def _delete_provider(self, provider):
         reply = QMessageBox.question(
@@ -282,6 +286,7 @@ class ProvidersView(QWidget):
         if reply == QMessageBox.Yes:
             MasterService.soft_delete_provider(provider.id)
             self.refresh_table()
+            self.providers_changed.emit()
 
     def _view_ledger(self, provider_id: int):
         dlg = ProviderLedgerDialog(provider_id=provider_id, parent=self)

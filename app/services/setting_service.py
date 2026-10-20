@@ -175,4 +175,15 @@ class SettingService:
                 session.query(ProviderOpeningBalance).delete()
                 session.query(Provider).delete()
 
+        try:
+            from app.database.audit_logger import AuditLogger
+            AuditLogger.log_system_event(
+                "SYSTEM",
+                "database",
+                "ALL",
+                f"Permanent data clearance executed (include_masters={include_masters}). Safety backup created at {safety_path}"
+            )
+        except Exception:
+            pass
+
         return True, f"Data successfully cleared. Safety backup saved at: {safety_path}"

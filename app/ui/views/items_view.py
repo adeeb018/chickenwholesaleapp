@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QDialog, QFormLayout, QMessageBox, QCheckBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from app.services.master_service import MasterService
 from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 
@@ -52,6 +52,8 @@ class ItemsView(QWidget):
     """
     Chicken Type Management Screen.
     """
+    items_changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -80,7 +82,7 @@ class ItemsView(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.table.setColumnWidth(4, 120)
+        self.table.setColumnWidth(4, 160)
         self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
         enable_table_copy_and_tooltips(self.table)
@@ -103,7 +105,8 @@ class ItemsView(QWidget):
 
             action_widget = QWidget()
             act_box = QHBoxLayout(action_widget)
-            act_box.setContentsMargins(6, 0, 6, 0)
+            act_box.setContentsMargins(4, 0, 4, 0)
+            act_box.setSpacing(6)
             act_box.setAlignment(Qt.AlignCenter)
 
             edit_btn = QPushButton("✏️ Edit")
@@ -111,7 +114,13 @@ class ItemsView(QWidget):
             edit_btn.setToolTip("Edit chicken type name or code")
             edit_btn.clicked.connect(lambda _, item=i: self._edit_item(item))
 
+            delete_btn = QPushButton("🗑️ Delete")
+            delete_btn.setProperty("class", "actionDelete")
+            delete_btn.setToolTip("Delete this chicken type")
+            delete_btn.clicked.connect(lambda _, item=i: self._delete_item(item))
+
             act_box.addWidget(edit_btn)
+            act_box.addWidget(delete_btn)
             self.table.setCellWidget(r, 4, action_widget)
 
     def _add_item(self):
@@ -123,6 +132,7 @@ class ItemsView(QWidget):
                 return
             MasterService.create_item(name=data["name"], code=data["code"])
             self.refresh_table()
+            self.items_changed.emit()
 
     def _edit_item(self, item):
         dlg = ItemDialog(item=item, parent=self)
@@ -133,3 +143,15 @@ class ItemsView(QWidget):
                 return
             MasterService.update_item(item_id=item.id, **data)
             self.refresh_table()
+            self.items_changed.emit()
+
+    def _delete_item(self, item):
+        reply = QMessageBox.question(
+            self, "Confirm Delete Chicken Type",
+            f"Are you sure you want to delete chicken type '{item.name}'?\n\nExisting transactions and stock history will be safely preserved.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            MasterService.soft_delete_item(item.id)
+            self.refresh_table()
+            self.items_changed.emit()

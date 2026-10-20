@@ -117,10 +117,21 @@ class ProviderPaymentsView(QWidget):
         self.load_combos()
         self.refresh_table()
 
+    def on_view_activated(self):
+        self.load_combos()
+        self.refresh_table()
+
     def load_combos(self):
+        curr_p = self.provider_combo.currentData()
+        self.provider_combo.blockSignals(True)
         self.provider_combo.clear()
         for p in MasterService.get_all_providers():
             self.provider_combo.addItem(p.name, p.id)
+        if curr_p is not None:
+            idx = self.provider_combo.findData(curr_p)
+            if idx >= 0:
+                self.provider_combo.setCurrentIndex(idx)
+        self.provider_combo.blockSignals(False)
 
     def _on_mode_changed(self):
         mode = self.mode_combo.currentText()

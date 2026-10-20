@@ -41,6 +41,7 @@ class BalanceService:
             from app.database.models import CustomerReturn
             all_returns = (
                 session.query(CustomerReturn)
+                .options(joinedload(CustomerReturn.lines))
                 .filter(CustomerReturn.customer_id == customer_id, CustomerReturn.is_deleted == False)
                 .all()
             )
