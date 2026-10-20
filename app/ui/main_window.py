@@ -132,6 +132,7 @@ class MainWindow(QMainWindow):
         self.items_view = ItemsView()
         self.reports_view = ReportsView()
         self.settings_view = SettingsView()
+        self.settings_view.data_cleared.connect(self._on_data_cleared)
 
         self.stacked.addWidget(self.dashboard_view)          # 0
         self.stacked.addWidget(self.purchases_view)          # 1
@@ -176,6 +177,19 @@ class MainWindow(QMainWindow):
             current_widget.refresh_table()
         elif hasattr(current_widget, "load_combos"):
             current_widget.load_combos()
+
+    def _on_data_cleared(self):
+        """Refreshes all views across the application when data is cleared or restored."""
+        for i in range(self.stacked.count()):
+            w = self.stacked.widget(i)
+            if hasattr(w, "on_view_activated"):
+                w.on_view_activated()
+            elif hasattr(w, "refresh_data"):
+                w.refresh_data()
+            elif hasattr(w, "refresh_table"):
+                w.refresh_table()
+            elif hasattr(w, "load_combos"):
+                w.load_combos()
 
     def _open_voucher_search(self):
         dlg = VoucherSearchDialog(parent=self)

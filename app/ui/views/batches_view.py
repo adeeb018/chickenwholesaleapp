@@ -24,7 +24,7 @@ class FinishBatchDialog(QDialog):
         info_box = QGroupBox("Batch Verification Details")
         info_layout = QFormLayout(info_box)
 
-        info_layout.addRow("Batch Number:", QLabel(f"<b>{batch.batch_number}</b>"))
+        info_layout.addRow("Batch Name:", QLabel(f"<b>{batch.batch_number}</b>"))
         info_layout.addRow("Purchase Date:", QLabel(batch.purchase_date.strftime("%d/%m/%Y")))
         info_layout.addRow("Chicken Item:", QLabel(batch.item.name if batch.item else ""))
         info_layout.addRow("Purchased Net Weight:", QLabel(format_weight(batch.net_weight_kg)))
@@ -114,7 +114,7 @@ class BatchHistoryDialog(QDialog):
         summary = QFrame()
         summary.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;")
         s_layout = QHBoxLayout(summary)
-        s_layout.addWidget(QLabel(f"<b>Batch:</b> {batch.batch_number}"))
+        s_layout.addWidget(QLabel(f"<b>Batch Name:</b> {batch.batch_number}"))
         s_layout.addWidget(QLabel(f"<b>Purchased:</b> {format_weight(hist.get('total_purchased', 0))}"))
         s_layout.addWidget(QLabel(f"<b>Sold:</b> {format_weight(hist.get('total_sold', 0))}"))
         s_layout.addWidget(QLabel(f"<b>Returns:</b> {format_weight(hist.get('total_returned', 0))}"))
@@ -205,7 +205,7 @@ class BatchesView(QWidget):
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Batch Number", "Purchase Date", "Chicken Item", "Purchased Net (KG)",
+            "Batch Name", "Purchase Date", "Chicken Item", "Purchased Net (KG)",
             "Available Stock (KG)", "Status", "Closure Notes", "Actions"
         ])
         header = self.table.horizontalHeader()

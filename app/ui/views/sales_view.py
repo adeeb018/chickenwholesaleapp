@@ -45,14 +45,17 @@ class MultiBatchSaleDialog(QDialog):
 
         # Allocations Table
         self.table = QTableWidget(0, 8)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Batch / Inventory Source", "Boxes", "Gross Wt (KG)", "Box Wt (KG)", "Net Wt (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
+            "Batch Name / Inventory Source", "Boxes", "Gross Wt (KG)", "Box Wt (KG)", "Net Wt (KG)", "Rate (₹/KG)", "Amount (₹)", "Action"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        header.setSectionResizeMode(QHeaderView.Fixed)
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setMinimumSectionSize(90)
+        header.setStretchLastSection(False)
 
+        self.table.setColumnWidth(0, 260)  # Batch Name / Inventory Source
         self.table.setColumnWidth(1, 90)   # Boxes
         self.table.setColumnWidth(2, 125)  # Gross (KG)
         self.table.setColumnWidth(3, 125)  # Box (KG)
@@ -898,7 +901,7 @@ class SalesView(QWidget):
         form_layout.addWidget(QLabel("Item / Chicken:", self), 0, 4)
         form_layout.addWidget(self.item_combo, 0, 5)
 
-        form_layout.addWidget(QLabel("<b>Batch / Allocation:</b>", self), 1, 0)
+        form_layout.addWidget(QLabel("<b>Batch Name / Allocation:</b>", self), 1, 0)
         form_layout.addWidget(batch_container, 1, 1, 1, 3)
         form_layout.addWidget(QLabel("No. of Boxes:", self), 1, 4)
         form_layout.addWidget(self.box_count_spin, 1, 5)
@@ -968,17 +971,18 @@ class SalesView(QWidget):
 
         layout.addLayout(filter_layout)
 
-        # Sales History Table - 13 columns including Batch/Allocation & Return action
+        # Sales History Table - 13 columns including Batch Name/Allocation & Return action
         self.table = QTableWidget(0, 13)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "ID", "Date", "Customer", "Item", "Boxes", "Gross (KG)", "Box (KG)",
-            "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Batch / Allocation", "Actions"
+            "Net (KG)", "Rate (₹/KG)", "Discount (₹)", "Final Amount", "Batch Name / Allocation", "Actions"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(12, QHeaderView.Fixed)
         self.table.setColumnWidth(12, 270)
         self.table.verticalHeader().setDefaultSectionSize(48)

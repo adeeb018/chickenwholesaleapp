@@ -310,14 +310,15 @@ class PurchasesView(QWidget):
 
         # Transactions Table
         self.table = QTableWidget(0, 14)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Batch #", "Voucher / Ref", "Actions"
+            "ID", "Date", "Provider", "Item", "Boxes", "Gross (KG)", "Box (KG)", "Net (KG)", "Rate (₹/KG)", "Amount", "Pay Type", "Batch Name", "Voucher / Ref", "Actions"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(13, QHeaderView.Fixed)
         self.table.setColumnWidth(13, 190)
         self.table.verticalHeader().setDefaultSectionSize(48)

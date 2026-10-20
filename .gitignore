@@ -50,3 +50,12 @@ htmlcov/
 .LSOverride
 ._*
 Thumbs.db
+
+.github/
+ChickenWholesale_Launch.bat
+Install_And_Run_Windows.bat
+WINDOWS_INSTALL_GUIDE.md
+app/ui/components/table_utils.py
+build_windows.bat
+installer.iss
+package_windows_release.py

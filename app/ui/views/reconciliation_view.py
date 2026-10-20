@@ -36,7 +36,7 @@ class ReconcileBatchDialog(QDialog):
         layout = QFormLayout(self)
 
         layout.addRow("Business Date:", QLabel(f"<b>{business_date.strftime('%d/%m/%Y')}</b>"))
-        layout.addRow("Batch Number:", QLabel(f"<b>{self.batch.batch_number}</b>"))
+        layout.addRow("Batch Name:", QLabel(f"<b>{self.batch.batch_number}</b>"))
         layout.addRow("Chicken Item:", QLabel(self.batch.item.name if self.batch.item else ""))
         layout.addRow("Opening Stock:", QLabel(format_weight(batch_val["opening_stock"])))
         layout.addRow("Stock Additions:", QLabel(format_weight(batch_val["stock_additions"])))
@@ -198,7 +198,7 @@ class ReconciliationView(QWidget):
         self.table = QTableWidget(0, 11)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Batch Number", "Purchase Date", "Item", "Opening Stock", "Additions",
+            "Batch Name", "Purchase Date", "Item", "Opening Stock", "Additions",
             "Sales", "Returns", "Expected Closing", "Actual Measured", "Difference", "Actions"
         ])
         header = self.table.horizontalHeader()

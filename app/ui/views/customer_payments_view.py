@@ -97,13 +97,15 @@ class CustomerPaymentsView(QWidget):
         layout.addLayout(filter_layout)
 
         self.table = QTableWidget(0, 8)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
             "ID", "Date", "Customer", "Mode", "Voucher #", "Bank Ref", "Amount", "Actions"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(7, QHeaderView.Fixed)
         self.table.setColumnWidth(7, 120)
         self.table.verticalHeader().setDefaultSectionSize(48)

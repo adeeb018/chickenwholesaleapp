@@ -117,7 +117,7 @@ class CustomerReturnsView(QWidget):
         form_layout.addWidget(QLabel("Original Sale:"), 0, 4)
         form_layout.addWidget(self.sale_combo, 0, 5)
 
-        form_layout.addWidget(QLabel("Target Batch:"), 1, 0)
+        form_layout.addWidget(QLabel("Target Batch Name:"), 1, 0)
         form_layout.addWidget(self.alloc_combo, 1, 1)
         form_layout.addWidget(QLabel("No. of Boxes:"), 1, 2)
         form_layout.addWidget(self.box_count_spin, 1, 3)
@@ -156,16 +156,17 @@ class CustomerReturnsView(QWidget):
 
         # Table - 13 columns displaying Boxes, Gross, Box Wt, Net, Credit, Actions
         self.table = QTableWidget(0, 13)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Return #", "Date", "Customer", "Sale Ref", "Batch",
+            "Return #", "Date", "Customer", "Sale Ref", "Batch Name",
             "Boxes", "Gross (KG)", "Box Wt (KG)", "Net (KG)",
             "Resale?", "Credit (₹)", "Reason & Notes", "Actions"
         ])
         header = self.table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(11, QHeaderView.Stretch)
+        header.setMinimumSectionSize(95)
+        header.setStretchLastSection(False)
         header.setSectionResizeMode(12, QHeaderView.Fixed)
         self.table.setColumnWidth(12, 120)
         self.table.verticalHeader().setDefaultSectionSize(48)

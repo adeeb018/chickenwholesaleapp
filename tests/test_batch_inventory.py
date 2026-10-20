@@ -1131,3 +1131,60 @@ def test_25_reconciliation_and_reports_horizontal_scrolling(qapp):
     batches = BatchesView()
     assert batches.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
 
+def test_26_purchases_payments_returns_and_batch_name(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QHeaderView
+    from app.ui.views.purchases_view import PurchasesView
+    from app.ui.views.customer_returns_view import CustomerReturnsView
+    from app.ui.views.customer_payments_view import CustomerPaymentsView
+    from app.ui.views.provider_payments_view import ProviderPaymentsView
+    from app.ui.views.sales_view import MultiBatchSaleDialog, SalesView
+    from app.ui.views.reconciliation_view import ReconciliationView
+    from app.ui.views.batches_view import BatchesView
+    from app.ui.views.reports_view import ReportsView
+
+    # Purchases Table
+    pv = PurchasesView()
+    assert pv.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert pv.table.horizontalHeaderItem(11).text() == "Batch Name"
+    assert pv.table.horizontalHeader().sectionResizeMode(11) == QHeaderView.ResizeToContents
+
+    # Customer Returns Table
+    crv = CustomerReturnsView()
+    assert crv.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert crv.table.horizontalHeaderItem(4).text() == "Batch Name"
+    assert crv.table.horizontalHeader().sectionResizeMode(4) == QHeaderView.ResizeToContents
+
+    # Customer Payments Table
+    cpv = CustomerPaymentsView()
+    assert cpv.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+
+    # Provider Payments Table
+    ppv = ProviderPaymentsView()
+    assert ppv.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+
+    # Multi Batch Split Table
+    mbs = MultiBatchSaleDialog(item_id=1, default_rate=150)
+    assert mbs.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert "Batch Name" in mbs.table.horizontalHeaderItem(0).text()
+
+    # Sales Table
+    sv = SalesView()
+    assert sv.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert "Batch Name" in sv.table.horizontalHeaderItem(11).text()
+
+    # Reconciliation Table
+    rv = ReconciliationView()
+    assert rv.table.horizontalHeaderItem(0).text() == "Batch Name"
+
+    # Batches View Table
+    bv = BatchesView()
+    assert bv.table.horizontalHeaderItem(0).text() == "Batch Name"
+
+    # Reports Hub
+    rep = ReportsView()
+    assert rep.weight_loss_tab.table.horizontalHeaderItem(0).text() == "Batch Name"
+    assert rep.batch_stock_tab.table.horizontalHeaderItem(0).text() == "Batch Name"
+    assert rep.returns_tab.table.horizontalHeaderItem(4).text() == "Batch Name"
+
+

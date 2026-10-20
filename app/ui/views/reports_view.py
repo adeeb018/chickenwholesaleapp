@@ -493,7 +493,7 @@ class WeightLossReportTab(QWidget):
         filter_layout.addWidget(self.status_combo)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Filter by Batch #, Provider, Item...")
+        self.search_input.setPlaceholderText("🔍 Filter by Batch Name, Provider, Item...")
         self.search_input.setClearButtonEnabled(True)
         self.search_input.textChanged.connect(self._apply_filters)
         filter_layout.addWidget(self.search_input)
@@ -529,7 +529,7 @@ class WeightLossReportTab(QWidget):
         self.table = QTableWidget(0, 14)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Batch #", "Date", "Provider", "Item", "Intake Net (KG)",
+            "Batch Name", "Date", "Provider", "Item", "Intake Net (KG)",
             "Sold Net (KG)", "Returns (KG)", "In-Stock (KG)", "Recon Loss (KG)",
             "Recon Gain (KG)", "Net Loss (KG)", "Loss %", "Status", "Actions"
         ])
@@ -805,7 +805,7 @@ class BatchStockReportTab(QWidget):
         self.table = QTableWidget(0, 10)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Batch #", "Item", "Status", "Purchased Date", "Purchased (KG)",
+            "Batch Name", "Item", "Status", "Purchased Date", "Purchased (KG)",
             "Sold (KG)", "Returns (KG)", "Loss / Gain (KG)", "Current Stock (KG)", "Actions"
         ])
         header = self.table.horizontalHeader()
@@ -935,7 +935,7 @@ class CustomerReturnsReportTab(QWidget):
         self.table = QTableWidget(0, 11)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setHorizontalHeaderLabels([
-            "Return #", "Date", "Customer", "Sale #", "Batch",
+            "Return #", "Date", "Customer", "Sale #", "Batch Name",
             "Gross (KG)", "Box (KG)", "Net (KG)", "Resale?", "Reason", "Credit Amount (₹)"
         ])
         header = self.table.horizontalHeader()

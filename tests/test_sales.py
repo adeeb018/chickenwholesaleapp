@@ -308,8 +308,10 @@ def test_multi_batch_sale_dialog_layout_and_data_visibility(qapp):
     assert dlg.table.verticalHeader().defaultSectionSize() >= 42
 
     # 2. Verify column widths and stretch modes
+    from PySide6.QtCore import Qt
     header = dlg.table.horizontalHeader()
-    assert header.sectionResizeMode(0) == QHeaderView.Stretch
+    assert dlg.table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert dlg.table.columnWidth(0) >= 240  # Batch Name / Inventory Source
     assert dlg.table.columnWidth(1) == 90   # Boxes
     assert dlg.table.columnWidth(2) == 125  # Gross
     assert dlg.table.columnWidth(3) == 125  # Box
