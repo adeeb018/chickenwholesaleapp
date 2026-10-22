@@ -3,7 +3,7 @@ from decimal import Decimal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QComboBox,
     QDoubleSpinBox, QSpinBox, QLineEdit, QDateEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit, QCheckBox
+    QHeaderView, QMessageBox, QDialog, QFormLayout, QTextEdit, QCheckBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, QDate
 from app.services.master_service import MasterService
@@ -95,8 +95,9 @@ class CustomerReturnsView(QWidget):
 
         self.reason_combo = QComboBox()
         self.reason_combo.setEditable(True)
-        self.reason_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.reason_combo.setMinimumContentsLength(12)
+        self.reason_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.reason_combo.setMinimumWidth(320)
+        self.reason_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.reason_combo.addItems([
             "Customer Excess / Unsold",
             "Order Size Adjustment",
@@ -104,6 +105,13 @@ class CustomerReturnsView(QWidget):
             "Quality Dispute",
             "Customer Cancellation"
         ])
+        if self.reason_combo.view():
+            self.reason_combo.view().setTextElideMode(Qt.ElideNone)
+            self.reason_combo.view().setMinimumWidth(360)
+        self.reason_combo.currentTextChanged.connect(lambda text: self.reason_combo.setToolTip(text))
+        self.reason_combo.setToolTip(self.reason_combo.currentText())
+        if self.reason_combo.lineEdit():
+            self.reason_combo.lineEdit().setPlaceholderText("Select or enter return reason")
 
         self.notes_edit = QLineEdit()
         self.notes_edit.setPlaceholderText("Optional remarks")
@@ -145,6 +153,10 @@ class CustomerReturnsView(QWidget):
         form_layout.addWidget(QLabel("Notes:"), 3, 4)
         form_layout.addWidget(self.notes_edit, 3, 5)
 
+        form_layout.setColumnStretch(1, 1)
+        form_layout.setColumnStretch(3, 2)
+        form_layout.setColumnStretch(5, 2)
+
         form_layout.addWidget(self.resale_check, 4, 0, 1, 4)
         form_layout.addWidget(save_btn, 4, 4, 1, 2)
 
@@ -177,6 +189,8 @@ class CustomerReturnsView(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setMinimumSectionSize(95)
         header.setStretchLastSection(False)
+        header.setSectionResizeMode(12, QHeaderView.Interactive)
+        self.table.setColumnWidth(12, 280)
         header.setSectionResizeMode(13, QHeaderView.Fixed)
         self.table.setColumnWidth(13, 120)
         self.table.verticalHeader().setDefaultSectionSize(48)
@@ -394,7 +408,10 @@ class CustomerReturnsView(QWidget):
                 self.table.setItem(r, 10, create_table_item(format_currency(line.rate_per_kg), alignment=Qt.AlignRight | Qt.AlignVCenter))
                 self.table.setItem(r, 11, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter, bold=True))
                 reason_str = f"{line.reason or ''} {f'({cr.notes})' if cr.notes else ''}".strip()
-                self.table.setItem(r, 12, create_table_item(reason_str or "-"))
+                reason_item = create_table_item(reason_str or "-")
+                if reason_str:
+                    reason_item.setToolTip(reason_str)
+                self.table.setItem(r, 12, reason_item)
 
                 # Attractive action button
                 action_widget = QWidget()

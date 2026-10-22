@@ -96,8 +96,8 @@ class MultiBatchSaleDialog(QDialog):
         self.allocations_data = []
 
         self.setWindowTitle("Multi-Batch Sale Allocation")
-        self.resize(1040, 560)
-        self.setMinimumSize(960, 480)
+        self.resize(1144, 560)
+        self.setMinimumSize(1056, 480)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -523,7 +523,8 @@ class QuickSaleReturnDialog(QDialog):
         super().__init__(parent)
         self.sale_id = sale_id
         self.setWindowTitle(f"Record Customer Return for Sale #{sale_id}")
-        self.resize(520, 500)
+        self.resize(580, 520)
+        self.setMinimumWidth(560)
 
         info = CustomerReturnService.get_returnable_sale_info(sale_id)
         if not info:
@@ -604,6 +605,8 @@ class QuickSaleReturnDialog(QDialog):
         layout.addRow("Resale Eligibility:", self.resale_check)
 
         self.reason_combo = QComboBox()
+        self.reason_combo.setMinimumWidth(320)
+        self.reason_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.reason_combo.addItems([
             "Excess Order / Customer Returned",
             "Quality Issue / Customer Rejected",
@@ -611,6 +614,11 @@ class QuickSaleReturnDialog(QDialog):
             "Weighing Discrepancy",
             "Other Reason"
         ])
+        if self.reason_combo.view():
+            self.reason_combo.view().setTextElideMode(Qt.ElideNone)
+            self.reason_combo.view().setMinimumWidth(350)
+        self.reason_combo.currentTextChanged.connect(lambda text: self.reason_combo.setToolTip(text))
+        self.reason_combo.setToolTip(self.reason_combo.currentText())
         layout.addRow("Return Reason:", self.reason_combo)
 
         self.credit_spin = QDoubleSpinBox()
@@ -767,8 +775,8 @@ class EditSaleDialog(QDialog):
         self.available_batches = []
 
         self.setWindowTitle(f"Edit Sale #{sale.id} & Multi-Batch Allocations")
-        self.resize(1060, 620)
-        self.setMinimumSize(960, 500)
+        self.resize(1166, 620)
+        self.setMinimumSize(1056, 500)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(18, 18, 18, 18)

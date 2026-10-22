@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QFrame, QWidget
 )
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QColor, QFont
+from PySide6.QtGui import QDesktopServices, QColor, QFont, QTextCursor
 from app.database.audit_logger import AuditLogger
 from app.ui.components.table_utils import enable_table_copy_and_tooltips, create_table_item
 
@@ -187,12 +187,13 @@ class AuditLogDialog(QDialog):
         log_path = AuditLogger.get_log_file_path()
         if log_path.exists():
             try:
-                with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
+                with AuditLogger._lock:
+                    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read()
                 self.raw_text.setPlainText(content)
-                self.raw_text.moveCursor(self.raw_text.textCursor().End)
-            except Exception:
-                self.raw_text.setPlainText("Error reading log file.")
+                self.raw_text.moveCursor(QTextCursor.End)
+            except Exception as e:
+                self.raw_text.setPlainText(f"Error reading log file: {str(e)}")
         else:
             self.raw_text.setPlainText("No audit log records recorded yet.")
 

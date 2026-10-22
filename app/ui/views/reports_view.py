@@ -943,6 +943,8 @@ class CustomerReturnsReportTab(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         header.setMinimumSectionSize(95)
         header.setStretchLastSection(False)
+        header.setSectionResizeMode(9, QHeaderView.Interactive)
+        self.table.setColumnWidth(9, 250)
         self.table.verticalHeader().setDefaultSectionSize(48)
         self.table.verticalHeader().setVisible(False)
         enable_table_copy_and_tooltips(self.table)
@@ -996,7 +998,10 @@ class CustomerReturnsReportTab(QWidget):
                 resale_col = Qt.darkGreen if line.resale_eligible else Qt.red
                 self.table.setItem(r, 8, create_table_item(resale_str, alignment=Qt.AlignCenter, color=resale_col))
 
-                self.table.setItem(r, 9, create_table_item(line.reason or "-"))
+                reason_item = create_table_item(line.reason or "-")
+                if line.reason:
+                    reason_item.setToolTip(line.reason)
+                self.table.setItem(r, 9, reason_item)
                 self.table.setItem(r, 10, create_table_item(format_currency(line.financial_amount), alignment=Qt.AlignRight | Qt.AlignVCenter))
 
         self.summary_card.setText(
